@@ -4,7 +4,12 @@
 // Links die Geräte (ein Haken setzt das Label „echo“), in der Mitte die Vorschau im Format der Echo
 // Show (Karten ziehen zum Sortieren, antippen zum Bearbeiten), rechts die gewählte Karte: Name,
 // Symbol, eigenes Icon, Bild, Farben, Texte ausblenden, Größe. „Speichern“ legt die Gestaltung in
-// Home Assistant ab; die Echo Show holt sie beim nächsten Öffnen ihres Dashboards.
+// Home Assistant ab; die Echo Show lädt sie gleich danach neu.
+//
+// Gezeichnet wird in Teilen: das Gerüst einmal, dann Kopfzeile, Geräteliste, Vorschau und
+// Eigenschaften je für sich, nur wenn sich bei ihnen etwas ändert. Home Assistant meldet jede
+// Zustandsänderung im Haus; die Vorschau folgt nur denen ihrer Karten, gebündelt, und nie mitten im
+// Ziehen.
 
 const DOMAIN_ICONS = {
   light: "mdi:lightbulb", switch: "mdi:toggle-switch", fan: "mdi:fan", cover: "mdi:window-shutter",
@@ -20,6 +25,9 @@ const DOMAIN_NAMES = {
 };
 const SIZES = [["1x1", "Klein"], ["2x1", "Breit"], ["2x2", "Groß"]];
 const AMBER = "#E9A23B";
+const INK = "#1c1206";          // Schrift auf einer hellen Karte
+const MAX_ROWS = 200;           // so viele Geräte zeigt die Liste auf einmal
+const PREVIEW_DELAY = 400;      // Zustandsänderungen sammeln, bevor die Vorschau sie zeigt (ms)
 
 const css = `
 :host { display:block; height:100%; background:var(--primary-background-color); color:var(--primary-text-color);
@@ -30,10 +38,10 @@ const css = `
 .top h1 { font-size:20px; font-weight:400; margin:0; flex:1; }
 .top .state { font-size:13px; opacity:.85; }
 .top button { background:rgba(255,255,255,.15); color:inherit; }
-.top button.primary { background:${AMBER}; color:#1c1206; }
+.top button.primary { background:${AMBER}; color:${INK}; }
 button { border:0; border-radius:18px; padding:8px 16px; font:inherit; cursor:pointer;
   background:var(--secondary-background-color); color:var(--primary-text-color); }
-button.primary { background:${AMBER}; color:#1c1206; font-weight:500; }
+button.primary { background:${AMBER}; color:${INK}; font-weight:500; }
 button:disabled { opacity:.45; cursor:default; }
 button.link { background:none; padding:4px 8px; color:var(--primary-color); }
 .main { display:grid; grid-template-columns:320px 1fr 340px; gap:16px; padding:16px; height:calc(100% - 56px); }
@@ -51,7 +59,6 @@ input[type=search], input[type=text], select { width:100%; padding:8px 10px; bor
 .dev .n { flex:1; min-width:0; }
 .dev .n div { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .dev .n small { color:var(--secondary-text-color); }
-.dev.off { opacity:.5; cursor:default; }
 /* Die Vorschau zeichnet wie die Echo Show 8 (1280 × 800): Ränder, Abstände und Größen in den Maßen
    von TECHO5 (drawn_cards.go), umgerechnet auf die Breite der Vorschau (--u ist eine Einheit). */
 .screen { container-type:inline-size; width:100%; max-width:960px; margin:0 auto; border-radius:18px;
@@ -70,25 +77,33 @@ input[type=search], input[type=text], select { width:100%; padding:8px 10px; bor
 .heading.sel { outline:2px solid ${AMBER}; }
 .tiles { display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:calc(var(--u)*var(--th, 84)); gap:calc(var(--u)*12); }
 .fill { position:absolute; inset:calc(var(--u)*20); display:grid; gap:calc(var(--u)*12); }
-.tile { --k:1; position:relative; border-radius:var(--e-rad); background:var(--e-card); color:var(--e-text); cursor:grab;
-  display:flex; align-items:center; gap:calc(var(--u)*12*var(--k)); padding:0 calc(var(--u)*12*var(--k)); overflow:hidden;
-  background-size:cover; background-position:center; }
+/* Eine Karte wie die Kacheln im Seitenfenster der Echo Show (drawer_ottoman_tiles.go,
+   drawn_studio_ottoman.go): das Symbol oben links, der Zustand oben rechts, der Name unten;
+   eingeschaltet leuchtet die ganze Karte. */
+.tile { --k:1; --pad:calc(var(--u)*13*var(--k)); --fill:var(--e-card); --fg:var(--e-text); --soft:var(--e-sub);
+  --ic:color-mix(in srgb, var(--e-sub) 50%, var(--e-text));
+  position:relative; border-radius:calc(var(--e-rad)*1.2); color:var(--fg); cursor:grab; overflow:hidden;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--fill) 93%, #fff), color-mix(in srgb, var(--fill) 93%, #000));
+  box-shadow:0 calc(var(--u)*3) calc(var(--u)*10) rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08); }
+.tile.on { --fill:var(--e-active); --fg:var(--on-ink, ${INK}); --soft:var(--on-ink, ${INK}); --ic:var(--on-ink, ${INK}); }
+.tile.pic { background-size:cover; background-position:center; }
 .tile.w2 { grid-column:span 2; } .tile.h2 { grid-row:span 2; }
 .tile.sel { outline:3px solid #fff; outline-offset:2px; }
-.tile.drop { box-shadow:calc(var(--u)*-6) 0 0 0 ${AMBER}; }
-.tile .shade { position:absolute; inset:0; background:linear-gradient(180deg, transparent 35%, var(--shade, rgba(0,0,0,.6))); pointer-events:none; }
-.tile > * { position:relative; }
-.badge { flex:none; width:calc(var(--u)*44*var(--k)); height:calc(var(--u)*44*var(--k)); border-radius:50%; display:flex; align-items:center;
-  justify-content:center; background:var(--badge, color-mix(in srgb, var(--e-card) 86%, var(--e-sub))); color:var(--ink, var(--e-sub)); }
-.badge.plain { background:none; }
-.badge ha-icon { --mdc-icon-size:calc(var(--u)*26*var(--k)); }
-.badge img { width:100%; height:100%; object-fit:contain; }
-.tile.solo { justify-content:center; }
-.tile.solo .badge { width:60%; height:60%; aspect-ratio:1; max-height:calc(100% - var(--u)*12); }
-.tile.solo .badge ha-icon { --mdc-icon-size:calc(var(--u)*56); }
-.txt { min-width:0; }
-.tile .name { font-size:calc(var(--u)*29*var(--k)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.1; }
-.tile .val { font-size:calc(var(--u)*21*var(--k)); color:var(--sub, var(--e-sub)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tile.drop, .heading.drop { box-shadow:calc(var(--u)*-6) 0 0 0 ${AMBER}; }
+.tile.dragging { opacity:.4; }
+.tile .shade { position:absolute; inset:0; background:linear-gradient(180deg, transparent 35%, var(--shade, rgba(0,0,0,.63))); pointer-events:none; }
+.tile .ico { position:absolute; left:var(--pad); top:var(--pad); width:calc(var(--u)*30*var(--k)); height:calc(var(--u)*30*var(--k));
+  display:flex; align-items:center; justify-content:center; color:var(--ic); pointer-events:none; }
+.tile .ico ha-icon { --mdc-icon-size:calc(var(--u)*30*var(--k)); }
+.tile .ico img { width:100%; height:100%; object-fit:contain; }
+.tile.solo .ico { left:50%; top:50%; transform:translate(-50%,-50%); width:calc(var(--u)*var(--side)); height:calc(var(--u)*var(--side)); }
+.tile.solo .ico ha-icon { --mdc-icon-size:calc(var(--u)*var(--side)*.75); }
+.tile .val { position:absolute; right:var(--pad); top:var(--pad); height:calc(var(--u)*30*var(--k)); line-height:calc(var(--u)*30*var(--k));
+  max-width:calc(100% - 2*var(--pad) - var(--u)*40*var(--k)); font-size:calc(var(--u)*21*var(--k)); color:var(--soft);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none; }
+.tile .name { position:absolute; left:var(--pad); right:var(--pad); bottom:calc(var(--u)*10*var(--k)); font-size:calc(var(--u)*25*var(--k));
+  line-height:1.12; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none; }
+.tile.two .name { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
 .empty { color:var(--e-sub); text-align:center; padding:40px 10px; flex:1; font-size:14px; }
 .props label { display:block; font-size:12px; color:var(--secondary-text-color); margin:12px 0 4px; }
 .row { display:flex; align-items:center; gap:8px; }
@@ -96,10 +111,11 @@ input[type=search], input[type=text], select { width:100%; padding:8px 10px; bor
 .check { display:flex; align-items:center; gap:10px; margin:10px 0; cursor:pointer; }
 .check input { width:18px; height:18px; accent-color:${AMBER}; }
 .seg { display:flex; gap:6px; }
-.seg button.on { background:${AMBER}; color:#1c1206; }
+.seg button.on { background:${AMBER}; color:${INK}; }
 .thumb { width:64px; height:64px; border-radius:10px; object-fit:cover; background:var(--secondary-background-color); }
 .hint { font-size:12px; color:var(--secondary-text-color); line-height:1.4; }
 .error { background:#b71c1c; color:#fff; padding:8px 12px; border-radius:8px; margin:0 16px; }
+.error:empty { display:none; }
 .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
 `;
 
@@ -119,13 +135,21 @@ class EchoStudioPanel extends HTMLElement {
     this._error = "";
     this._filter = { text: "", area: "", domain: "", only: false };
     this._signed = {};        // Bilddatei -> signierte Adresse
+    this._sig = "";           // die Zustände der Karten, wie die Vorschau sie zuletzt zeigte
+    this._timer = null;       // eine aufgeschobene Vorschau
+    this._dragFrom = -1;      // die Karte, die gerade gezogen wird
+    this._dropEl = null;
+    this._stale = false;      // die Vorschau ist veraltet, zeichnen, sobald das Ziehen endet
+    this._tilesEntity = undefined; // select.*_dashboard_tiles der Echo Show ("" = keine gefunden)
   }
 
   set hass(hass) {
     const first = !this._hass;
     this._hass = hass;
-    if (first) this._load();
-    else if (this._loaded && !this._busy) this._renderPreviewOnly();
+    if (first) { this._load(); return; }
+    if (!this._loaded) return;
+    const sig = this._stateSig();
+    if (sig !== this._sig) this._previewSoon();
   }
 
   set panel(panel) { this._config = (panel && panel.config) || {}; }
@@ -212,6 +236,17 @@ class EchoStudioPanel extends HTMLElement {
     return t;
   }
 
+  // Was die Vorschau von Home Assistant zeigt: die Zustände ihrer Karten und wie die Echo Show ihr
+  // Dashboard legt. Ändert sich daran nichts, bleibt die Vorschau, wie sie ist.
+  _stateSig() {
+    const st = this._hass.states;
+    let sig = this._echoTiles();
+    for (const it of this._items) {
+      if (it.entity) { const s = st[it.entity]; sig += "|" + (s ? s.state + s.last_updated : ""); }
+    }
+    return sig;
+  }
+
   async _ensureLabel() {
     if (this._labelId) return this._labelId;
     const created = await this._hass.callWS({ type: "config/label_registry/create", name: this._label, icon: "mdi:tablet", color: "amber" });
@@ -220,10 +255,12 @@ class EchoStudioPanel extends HTMLElement {
   }
 
   // Ein Haken in der Geräteliste: setzt oder nimmt das Label, sofort in Home Assistant.
-  async _toggleDevice(entityId, on) {
+  async _toggleDevice(entityId, on, box) {
     const entry = this._registry.find((e) => e.ei === entityId);
     if (!entry) return;
     this._busy = true;
+    if (box) box.disabled = true;
+    this._renderTop();
     try {
       const label = await this._ensureLabel();
       const labels = new Set(entry.lb || []);
@@ -235,14 +272,20 @@ class EchoStudioPanel extends HTMLElement {
       this._error = "";
     } catch (err) {
       this._error = "Label konnte nicht gesetzt werden: " + (err.message || err);
+      if (box) box.checked = !on;
     }
     this._busy = false;
-    this._render();
+    if (box) box.disabled = false;
+    this._renderTop();
+    this._renderCount();
+    if (this._filter.only) this._renderDeviceList();
+    this._renderPreview();
+    this._renderProps();
   }
 
   async _save() {
     this._busy = true;
-    this._render();
+    this._renderTop();
     try {
       const saved = await this._hass.callWS({ type: "echo_studio/layout/save", layout: { version: 1, items: this._items } });
       this._items = saved.items.map((i) => ({ ...i }));
@@ -252,7 +295,9 @@ class EchoStudioPanel extends HTMLElement {
       this._error = "Speichern fehlgeschlagen: " + (err.message || err);
     }
     this._busy = false;
-    this._render();
+    this._renderTop();
+    this._renderPreview();
+    this._renderProps();
   }
 
   _item(sel) {
@@ -261,30 +306,41 @@ class EchoStudioPanel extends HTMLElement {
     return this._items.find((i) => i.entity === sel) || null;
   }
 
-  _change(patch) {
+  // Ändert die gewählte Karte. props: auch die Eigenschaften neu zeichnen (nicht nötig, wenn die
+  // Änderung aus einem Feld kommt, das schon zeigt, was gilt).
+  _change(patch, props = true) {
     const item = this._item(this._selected);
     if (!item) return;
     for (const [k, v] of Object.entries(patch)) {
       if (v === "" || v === false || v == null) delete item[k]; else item[k] = v;
     }
+    this._edited(props);
+  }
+
+  // Nach einer Änderung an der Gestaltung: Kopfzeile und Vorschau, und wenn gewünscht die Eigenschaften.
+  _edited(props = true) {
     this._dirty = true;
-    this._render();
+    this._renderTop();
+    this._renderPreview();
+    if (props) this._renderProps();
   }
 
   _move(from, to) {
-    if (from === to || from < 0 || to < 0 || from >= this._items.length) return;
+    if (from === to || from < 0 || to < 0 || from >= this._items.length) return false;
     const [it] = this._items.splice(from, 1);
     this._items.splice(to > from ? to - 1 : to, 0, it);
-    this._dirty = true;
-    this._render();
+    return true;
   }
+
+  // Wählt die Karte oder Überschrift it, nachdem sie sich bewegt hat (ihr Index ist ein anderer).
+  _select(it) { this._selected = it.heading !== undefined ? "#" + this._items.indexOf(it) : it.entity; }
 
   // Ein Bild: auf dem Gerät verkleinert (ein Icon auf 192, ein Bild auf 960 Pixel), dann hochgeladen.
   async _upload(file, key) {
     const max = key === "icon_image" ? 192 : 960;
     try {
       this._busy = true;
-      this._render();
+      this._renderTop();
       let type = "image/png", data;
       if (file.type === "image/svg+xml") {
         type = file.type;
@@ -305,7 +361,7 @@ class EchoStudioPanel extends HTMLElement {
     } catch (err) {
       this._busy = false;
       this._error = "Bild konnte nicht hochgeladen werden: " + (err.message || err);
-      this._render();
+      this._renderTop();
     }
   }
 
@@ -313,80 +369,134 @@ class EchoStudioPanel extends HTMLElement {
   _url(file) {
     if (!file) return "";
     if (this._signed[file]) return this._signed[file];
+    if (this._signed[file] === "") return "";
     this._signed[file] = "";
     this._hass.callWS({ type: "auth/sign_path", path: `${this._config?.files_url || "/api/echo_studio/file"}/${file}`, expires: 3600 })
-      .then((r) => { this._signed[file] = r.path; this._render(); })
-      .catch(() => {});
+      .then((r) => {
+        this._signed[file] = r.path;
+        this._renderPreview();
+        const it = this._item(this._selected);
+        if (it && (it.image === file || it.icon_image === file)) this._renderProps();
+      })
+      .catch(() => { delete this._signed[file]; });
     return "";
   }
 
   _esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
+  _el(id) { return this.shadowRoot && this.shadowRoot.getElementById(id); }
+
   // --- Zeichnen ----------------------------------------------------------------------------------
 
+  // Das Gerüst, einmal nach dem Laden; die Teile zeichnen sich danach je für sich.
   _render() {
-    if (!this.shadowRoot) return;
     const r = this.shadowRoot;
-    const scroll = [...r.querySelectorAll(".pane")].map((p) => p.scrollTop);
     r.innerHTML = `<style>${css}</style>
       <div class="top">
         <h1>Echo Studio</h1>
-        <span class="state">${this._busy ? "Einen Moment …" : this._dirty ? "Nicht gespeichert" : this._loaded ? "Gespeichert" : ""}</span>
-        <button class="primary" id="save" ${!this._dirty || this._busy ? "disabled" : ""}>Speichern</button>
+        <span class="state" id="state"></span>
+        <button class="primary" id="save">Speichern</button>
       </div>
-      ${this._error ? `<div class="error">${this._esc(this._error)}</div>` : ""}
+      <div class="error" id="error"></div>
       ${this._loaded ? `<div class="main">
-        <div class="pane" id="devpane">${this._devicesHtml()}</div>
-        <div class="pane"><h2>Vorschau der Echo Show</h2><div class="screen"><div class="page" id="grid">${this._previewHtml()}</div></div>
+        <div class="pane" id="devpane">${this._devicesHeadHtml()}<div id="devlist"></div></div>
+        <div class="pane"><h2>Vorschau der Echo Show</h2><div class="screen"><div class="page" id="grid"></div></div>
           <div class="actions"><button id="addheading">+ Überschrift</button>
           <span class="hint">Karten ziehen zum Sortieren, antippen zum Gestalten. Die Echo Show zeigt die neue Gestaltung gleich nach dem Speichern. Überschriften teilen die Karten in Abschnitte; die Echo Show verteilt sie auf zwei Spalten. Steht sie auf „Fill the screen“, legt sie bis zu neun Karten groß über den ganzen Bildschirm und lässt Überschriften und Größen weg.</span></div></div>
-        <div class="pane props" id="props">${this._propsHtml()}</div>
+        <div class="pane props" id="props"></div>
       </div>` : `<div class="pane" style="margin:16px">Lade …</div>`}`;
-    [...r.querySelectorAll(".pane")].forEach((p, i) => { if (scroll[i]) p.scrollTop = scroll[i]; });
     this._wire();
+    this._renderTop();
+    if (!this._loaded) return;
+    this._renderCount();
+    this._renderDeviceList();
+    this._renderPreview();
+    this._renderProps();
   }
 
-  _renderPreviewOnly() {
-    const grid = this.shadowRoot && this.shadowRoot.getElementById("grid");
-    if (!grid) return;
-    grid.innerHTML = this._previewHtml();
-    this._wireGrid();
+  _renderTop() {
+    const state = this._el("state"), save = this._el("save"), error = this._el("error");
+    if (state) state.textContent = this._busy ? "Einen Moment …" : this._dirty ? "Nicht gespeichert" : this._loaded ? "Gespeichert" : "";
+    if (save) save.disabled = !this._dirty || this._busy;
+    if (error) error.textContent = this._error;
   }
 
-  _devicesHtml() {
+  // --- Geräteliste
+
+  _devicesHeadHtml() {
     const f = this._filter;
     const areas = [...new Set(this._registry.map((e) => this._areaOf(e)).filter(Boolean))].sort();
     const domains = [...new Set(this._registry.map((e) => e.ei.split(".")[0]))].filter((d) => DOMAIN_NAMES[d]).sort();
-    const text = f.text.toLowerCase();
-    const rows = this._registry.filter((e) => {
-      const d = e.ei.split(".")[0];
-      if (!DOMAIN_NAMES[d] || e.hb || e.ec != null) return false;
-      if (f.domain && d !== f.domain) return false;
-      if (f.area && this._areaOf(e) !== f.area) return false;
-      if (f.only && !this._hasLabel(e)) return false;
-      if (text && !(this._friendly(e.ei).toLowerCase().includes(text) || e.ei.includes(text))) return false;
-      return true;
-    });
-    const groups = {};
-    for (const e of rows) (groups[this._areaOf(e) || "Ohne Raum"] ||= []).push(e);
-    const count = this._registry.filter((e) => this._hasLabel(e)).length;
-    let html = `<h2>Geräte auf der Echo Show <small>(${count})</small></h2>
+    return `<h2>Geräte auf der Echo Show <small id="count"></small></h2>
       <input type="search" id="q" placeholder="Suchen …" value="${this._esc(f.text)}">
       <div class="filters">
         <select id="area"><option value="">Alle Räume</option>${areas.map((a) => `<option ${a === f.area ? "selected" : ""}>${this._esc(a)}</option>`).join("")}</select>
         <select id="domain"><option value="">Alle Arten</option>${domains.map((d) => `<option value="${d}" ${d === f.domain ? "selected" : ""}>${DOMAIN_NAMES[d]}</option>`).join("")}</select>
       </div>
       <label class="check"><input type="checkbox" id="only" ${f.only ? "checked" : ""}> Nur ausgewählte zeigen</label>`;
-    for (const name of Object.keys(groups).sort((a, b) => (a === "Ohne Raum") - (b === "Ohne Raum") || a.localeCompare(b))) {
-      html += `<div class="group">${this._esc(name)}</div>`;
-      for (const e of groups[name].sort((a, b) => this._friendly(a.ei).localeCompare(this._friendly(b.ei)))) {
-        html += `<label class="dev" data-entity="${e.ei}"><input type="checkbox" ${this._hasLabel(e) ? "checked" : ""} ${this._busy ? "disabled" : ""}>
-          <ha-icon icon="${this._esc(this._defaultIcon(e.ei))}"></ha-icon>
-          <span class="n"><div>${this._esc(this._friendly(e.ei))}</div><small>${e.ei}</small></span></label>`;
-      }
+  }
+
+  _renderCount() {
+    const el = this._el("count");
+    if (el) el.textContent = `(${this._registry.filter((e) => this._hasLabel(e)).length})`;
+  }
+
+  _renderDeviceList() {
+    const list = this._el("devlist");
+    if (!list) return;
+    const f = this._filter;
+    const text = f.text.toLowerCase();
+    const named = [];
+    for (const e of this._registry) {
+      const d = e.ei.split(".")[0];
+      if (!DOMAIN_NAMES[d] || e.hb || e.ec != null) continue;
+      if (f.domain && d !== f.domain) continue;
+      const area = this._areaOf(e);
+      if (f.area && area !== f.area) continue;
+      if (f.only && !this._hasLabel(e)) continue;
+      const name = this._friendly(e.ei);
+      if (text && !(name.toLowerCase().includes(text) || e.ei.includes(text))) continue;
+      named.push({ e, name, area: area || "Ohne Raum" });
     }
-    if (!rows.length) html += `<p class="hint">Nichts gefunden.</p>`;
-    return html;
+    named.sort((a, b) => (a.area === "Ohne Raum") - (b.area === "Ohne Raum") || a.area.localeCompare(b.area)
+      || this._hasLabel(b.e) - this._hasLabel(a.e) || a.name.localeCompare(b.name));
+    let html = "", group = null;
+    for (const { e, name, area } of named.slice(0, MAX_ROWS)) {
+      if (area !== group) { html += `<div class="group">${this._esc(area)}</div>`; group = area; }
+      html += `<label class="dev" data-entity="${e.ei}"><input type="checkbox" ${this._hasLabel(e) ? "checked" : ""}>
+        <ha-icon icon="${this._esc(this._defaultIcon(e.ei))}"></ha-icon>
+        <span class="n"><div>${this._esc(name)}</div><small>${e.ei}</small></span></label>`;
+    }
+    if (!named.length) html += `<p class="hint">Nichts gefunden.</p>`;
+    else if (named.length > MAX_ROWS) html += `<p class="hint">${MAX_ROWS} von ${named.length} gezeigt. Suche oder filtere nach Raum oder Art, um die übrigen zu finden.</p>`;
+    list.innerHTML = html;
+  }
+
+  // --- Vorschau
+
+  // Zeichnet die Vorschau bald: Änderungen der Zustände kommen oft in Schüben; mitten im Ziehen gar
+  // nicht, sondern erst, wenn es endet.
+  _previewSoon() {
+    if (this._timer) return;
+    this._timer = setTimeout(() => { this._timer = null; this._renderPreview(); }, PREVIEW_DELAY);
+  }
+
+  _renderPreview() {
+    const grid = this._el("grid");
+    if (!grid) return;
+    if (this._dragFrom >= 0) { this._stale = true; return; }
+    this._stale = false;
+    this._sig = this._stateSig();
+    grid.innerHTML = this._previewHtml();
+  }
+
+  // Zeigt die Auswahl in der Vorschau, ohne sie neu zu zeichnen.
+  _markSelected() {
+    const grid = this._el("grid");
+    if (!grid) return;
+    grid.querySelectorAll(".sel").forEach((el) => el.classList.remove("sel"));
+    if (this._selected == null) return;
+    grid.querySelectorAll("[data-sel]").forEach((el) => { if (el.dataset.sel === this._selected) el.classList.add("sel"); });
   }
 
   // Die Abschnitte: eine Überschrift beginnt einen, was davor steht, ist einer ohne Überschrift.
@@ -422,9 +532,18 @@ class EchoStudioPanel extends HTMLElement {
   // Die Einstellungen der Echo Show, die bestimmen, wie sie das Dashboard legt: „Dashboard tiles“
   // (Normal, Large, Fill the screen). Gelesen aus ihrer Entität in Home Assistant.
   _echoTiles() {
-    const id = Object.keys(this._hass.states).find((e) => /^select\..*_dashboard_tiles$/.test(e));
-    const v = id ? this._hass.states[id].state : "";
+    if (this._tilesEntity === undefined) {
+      this._tilesEntity = Object.keys(this._hass.states).find((e) => /^select\..*_dashboard_tiles$/.test(e)) || "";
+    }
+    const v = this._tilesEntity ? this._hass.states[this._tilesEntity]?.state : "";
     return v === "Fill the screen" ? "fill" : v === "Large" ? "large" : "";
+  }
+
+  // Die Schrift auf einer eingeschalteten Karte in der Akzentfarbe: dunkel auf hell, weiß auf dunkel.
+  _activeInk() {
+    const v = getComputedStyle(this).getPropertyValue("--state-light-on-color").trim() || "#ff9800";
+    const rgb = this._parse(v);
+    return rgb && this._lumaOf(rgb) < 150 ? "#fff" : INK;
   }
 
   _previewHtml() {
@@ -432,69 +551,86 @@ class EchoStudioPanel extends HTMLElement {
     if (!secs.length) return `<div class="empty">Noch keine Karten. Hake links die Geräte an, die auf der Echo Show erscheinen sollen.</div>`;
     const mode = this._echoTiles();
     const tiles = secs.flatMap((s) => s.items);
+    this._onInk = this._activeInk();
     // Fill the screen: bis zu neun Karten über den ganzen Bildschirm, Überschriften und Größen gelten
     // dann nicht (drawn_fill.go).
     if (mode === "fill" && tiles.length && tiles.length <= 9) {
       const n = tiles.length, cols = n <= 1 ? 1 : n === 2 || n === 4 ? 2 : 3, rows = Math.ceil(n / cols);
       const tw = (920 - 12 * (cols - 1)) / cols, th = (560 - 12 * (rows - 1)) / rows;
-      const k = Math.min(th / 84, tw / 220, 2.5);
       return `<div class="fill" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr)">
-        ${tiles.map(({ it, idx }) => this._tileHtml(it, idx, k >= 1.05 ? k : 1, true)).join("")}</div>`;
+        ${tiles.map(({ it, idx }) => this._tileHtml(it, idx, tw, th, true)).join("")}</div>`;
     }
     const large = mode === "large";
     const ncols = large ? Math.max(1, Math.min(2, secs.length)) : 2;
+    const th = large ? 126 : 84;
+    const secW = ncols === 1 ? 920 : 454;
     const cols = Array.from({ length: ncols }, () => []), heights = new Array(ncols).fill(0);
     for (const sec of secs) {
       let c = 0;
       heights.forEach((h, i) => { if (h < heights[c]) c = i; });
       cols[c].push(sec);
-      heights[c] += this._sectionHeight(sec, large ? 126 : 84) + 12;
+      heights[c] += this._sectionHeight(sec, th) + 12;
     }
-    const k = large ? Math.min(126 / 84, (ncols === 1 ? 454 : 221) / 220) : 1;
+    const tile = ({ it, idx }) => {
+      const size = it.size || "1x1", n = size === "2x2" ? 2 : 1;
+      return this._tileHtml(it, idx, size === "1x1" ? (secW - 12) / 2 : secW, n * th + (n - 1) * 12);
+    };
     return cols.map((col) => `<div class="col">${col.map((sec) => `<div class="sec">
       ${sec.heading !== null ? `<div class="heading ${this._selected === "#" + sec.idx ? "sel" : ""}" draggable="true" data-idx="${sec.idx}" data-sel="#${sec.idx}">${this._esc(sec.heading)}</div>` : ""}
-      ${sec.items.length ? `<div class="tiles" style="--th:${large ? 126 : 84}">${sec.items.map(({ it, idx }) => this._tileHtml(it, idx, k >= 1.05 ? k : 1)).join("")}</div>` : ""}</div>`).join("")}</div>`).join("");
+      ${sec.items.length ? `<div class="tiles" style="--th:${th}">${sec.items.map(tile).join("")}</div>` : ""}</div>`).join("")}</div>`).join("");
   }
 
-  // Eine Karte, wie die Echo Show sie zeichnet (drawn_cards.go tile, drawn_studio_ottoman.go): dunkel,
-  // ein runder Kreis ums Symbol, der leuchtet, wenn sie an ist; mit eigener Farbe die ganze Karte in
-  // ihr, mit Bild das Bild und unten dunkler.
-  _tileHtml(it, idx, k = 1, filled = false) {
+  // Eine Karte, wie die Echo Show sie zeichnet (drawn_studio_ottoman.go), w × h in ihren Einheiten:
+  // das Symbol oben links, der Zustand oben rechts, der Name unten; an, leuchtet die ganze Karte in
+  // der Akzentfarbe oder ihrer Farbe für an; aus ist sie dunkel oder in ihrer Farbe für aus; mit Bild
+  // das Bild, unten dunkler. Größer als die gewöhnliche Karte, wächst alles mit ihr (k).
+  _tileHtml(it, idx, w, h, filled = false) {
     const on = this._isOn(it.entity);
     const size = filled ? "1x1" : it.size || "1x1";
+    let k = Math.min(h / 84, w / 220, 2.5);
+    if (k < 1.05) k = 1;
     const fill = on ? it.color_on : it.color_off;
     const img = it.image ? this._url(it.image) : "";
     const icoImg = it.icon_image ? this._url(it.icon_image) : "";
-    const plain = !!(fill || it.image);
-    const vars = [];
-    let ink = "#8a7d6c";
+    const cls = ["tile"], vars = [`--k:${k.toFixed(3)}`];
     if (it.image) {
-      vars.push(`background-image:url('${img}')`, "color:#fff", "--sub:#e8e8e8");
+      cls.push("pic");
+      vars.push(img ? `background-image:url('${img}')` : "background:#333", "--fg:#fff", "--soft:#e8e8e8", "--ic:#fff");
       if (on) vars.push(`--shade:${this._half(it.color_on || AMBER)}`);
-      ink = "#fff";
     } else if (fill) {
-      const dark = this._luma(fill) < 140;
-      ink = dark ? "#fff" : "#1c1206";
-      vars.push(`background:${fill}`, `color:${ink}`, `--sub:${dark ? "rgba(255,255,255,.75)" : "rgba(28,18,6,.75)"}`);
-    } else {
-      const tint = it.color_on || (on ? "var(--e-active)" : "");
-      if (tint) { ink = tint; vars.push(`--badge:color-mix(in srgb, var(--e-card) 78%, ${tint})`); }
+      const ink = this._luma(fill) < 150 ? "#fff" : INK;
+      vars.push(`--fill:${fill}`, `--fg:${ink}`, `--soft:${ink}`, `--ic:${ink}`);
+    } else if (on) {
+      cls.push("on");
+      vars.push(`--on-ink:${this._onInk}`);
     }
-    vars.push(`--ink:${ink}`, `--k:${k.toFixed(3)}`);
+    if (size !== "1x1") cls.push("w2");
+    if (size === "2x2") cls.push("h2");
+    if (this._selected === it.entity) cls.push("sel");
     const solo = it.hide_name && it.hide_state;
-    const icon = icoImg ? `<img src="${icoImg}">` : `<ha-icon icon="${this._esc(it.icon || this._defaultIcon(it.entity))}"></ha-icon>`;
-    return `<div class="tile ${size !== "1x1" ? "w2" : ""} ${size === "2x2" ? "h2" : ""} ${solo ? "solo" : ""} ${this._selected === it.entity ? "sel" : ""}"
-        draggable="true" data-idx="${idx}" data-sel="${it.entity}" style="${vars.join(";")}">
-      ${it.image ? `<div class="shade"></div>` : ""}
-      <div class="badge ${plain || icoImg ? "plain" : ""}">${icon}</div>
-      ${solo ? "" : `<div class="txt">${it.hide_name ? "" : `<div class="name">${this._esc(it.name || this._friendly(it.entity))}</div>`}
-        ${it.hide_state ? "" : `<div class="val">${this._esc(this._stateText(it.entity))}</div>`}</div>`}</div>`;
+    if (solo) { cls.push("solo"); vars.push(`--side:${(Math.min(w, h) * 0.6).toFixed(1)}`); }
+    if (h >= 112 * k) cls.push("two");
+    const icon = icoImg ? `<img src="${icoImg}">` : it.icon_image ? "" : `<ha-icon icon="${this._esc(it.icon || this._defaultIcon(it.entity))}"></ha-icon>`;
+    return `<div class="${cls.join(" ")}" draggable="true" data-idx="${idx}" data-sel="${it.entity}" style="${vars.join(";")}">
+      ${it.image ? `<div class="shade"></div>` : ""}<div class="ico">${icon}</div>
+      ${solo || it.hide_state ? "" : `<div class="val">${this._esc(this._stateText(it.entity))}</div>`}
+      ${solo || it.hide_name ? "" : `<div class="name">${this._esc(it.name || this._friendly(it.entity))}</div>`}</div>`;
   }
 
   _rgb(hex) { const v = parseInt(hex.slice(1), 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; }
-  _luma(hex) { const [r, g, b] = this._rgb(hex); return 0.299 * r + 0.587 * g + 0.114 * b; }
-  _mix(a, b, t) { const x = this._rgb(a), y = this._rgb(b); return `rgb(${x.map((v, i) => Math.round(v + (y[i] - v) * t)).join(",")})`; }
-  _half(hex) { const [r, g, b] = this._rgb(hex); return `rgba(${r >> 1},${g >> 1},${b >> 1},.67)`; }
+  _luma(hex) { return this._lumaOf(this._rgb(hex)); }
+  _lumaOf([r, g, b]) { return 0.299 * r + 0.587 * g + 0.114 * b; }
+  _half(hex) { const [r, g, b] = this._rgb(hex); return `rgba(${r >> 1},${g >> 1},${b >> 1},.7)`; }
+  // Eine Farbe aus CSS: #rgb, #rrggbb oder rgb(…); null, wenn sie anders geschrieben ist.
+  _parse(v) {
+    let m = /^#([0-9a-f]{3})$/i.exec(v);
+    if (m) return [...m[1]].map((c) => parseInt(c + c, 16));
+    if (/^#[0-9a-f]{6}$/i.test(v)) return this._rgb(v);
+    m = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(v);
+    return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+  }
+
+  // --- Eigenschaften
 
   _propsHtml() {
     const it = this._item(this._selected);
@@ -527,102 +663,135 @@ class EchoStudioPanel extends HTMLElement {
       <input type="file" id="imagefile" accept="image/*" hidden>`;
   }
 
+  _renderProps() {
+    const pane = this._el("props");
+    if (!pane) return;
+    const scroll = pane.scrollTop;
+    pane.innerHTML = this._propsHtml();
+    pane.scrollTop = scroll;
+    this._wireProps();
+  }
+
   // --- Ereignisse --------------------------------------------------------------------------------
 
+  // Die Ereignisse des Gerüsts, einmal: an den Bereichen, nicht an jeder Zeile und jeder Karte, damit
+  // ein Neuzeichnen nichts neu verbinden muss.
   _wire() {
-    const r = this.shadowRoot;
-    const on = (id, ev, fn) => { const el = r.getElementById(id); if (el) el.addEventListener(ev, fn); };
+    const on = (id, ev, fn) => { const el = this._el(id); if (el) el.addEventListener(ev, fn); };
     on("save", "click", () => this._save());
-    on("q", "input", (e) => { this._filter.text = e.target.value; this._refreshDevices(); });
-    on("area", "change", (e) => { this._filter.area = e.target.value; this._render(); });
-    on("domain", "change", (e) => { this._filter.domain = e.target.value; this._render(); });
-    on("only", "change", (e) => { this._filter.only = e.target.checked; this._render(); });
-    this._wireDevices();
+    if (!this._loaded) return;
+
+    let typing = null;
+    on("q", "input", (e) => {
+      this._filter.text = e.target.value;
+      clearTimeout(typing);
+      typing = setTimeout(() => this._renderDeviceList(), 150);
+    });
+    on("area", "change", (e) => { this._filter.area = e.target.value; this._renderDeviceList(); });
+    on("domain", "change", (e) => { this._filter.domain = e.target.value; this._renderDeviceList(); });
+    on("only", "change", (e) => { this._filter.only = e.target.checked; this._renderDeviceList(); });
+    on("devlist", "change", (e) => {
+      const row = e.target.closest(".dev");
+      if (row && e.target.type === "checkbox") this._toggleDevice(row.dataset.entity, e.target.checked, e.target);
+    });
     on("addheading", "click", () => {
       this._items.unshift({ heading: "Neue Überschrift" });
       this._selected = "#0";
-      this._dirty = true;
-      this._render();
+      this._edited();
     });
     this._wireGrid();
+  }
 
+  _wireGrid() {
+    const grid = this._el("grid");
+    const target = (e) => e.target.closest && e.target.closest("[data-idx]");
+    const clearDrop = () => { if (this._dropEl) this._dropEl.classList.remove("drop"); this._dropEl = null; };
+    grid.addEventListener("click", (e) => {
+      const el = target(e);
+      if (!el || el.dataset.sel === this._selected) return;
+      this._selected = el.dataset.sel;
+      this._markSelected();
+      this._renderProps();
+    });
+    grid.addEventListener("dragstart", (e) => {
+      const el = target(e);
+      if (!el) return;
+      this._dragFrom = Number(el.dataset.idx);
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", el.dataset.idx); // ohne Daten zieht Firefox nicht
+      requestAnimationFrame(() => el.classList.add("dragging"));
+    });
+    grid.addEventListener("dragover", (e) => {
+      if (this._dragFrom < 0) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      const el = target(e);
+      if (el === this._dropEl) return;
+      clearDrop();
+      if (el && Number(el.dataset.idx) !== this._dragFrom) { el.classList.add("drop"); this._dropEl = el; }
+    });
+    grid.addEventListener("drop", (e) => {
+      if (this._dragFrom < 0) return;
+      e.preventDefault();
+      const el = target(e);
+      const from = this._dragFrom, to = el ? Number(el.dataset.idx) : this._items.length;
+      const it = this._items[from];
+      clearDrop();
+      this._dragFrom = -1;
+      if (it && this._move(from, to)) {
+        this._select(it);
+        this._edited();
+      } else if (this._stale) this._renderPreview();
+    });
+    grid.addEventListener("dragend", () => {
+      clearDrop();
+      grid.querySelectorAll(".dragging").forEach((el) => el.classList.remove("dragging"));
+      if (this._dragFrom < 0) return; // schon abgelegt
+      this._dragFrom = -1;
+      if (this._stale) this._renderPreview();
+    });
+  }
+
+  // Die Felder der gewählten Karte; sie werden mit ihr neu gezeichnet.
+  _wireProps() {
+    const r = this.shadowRoot;
+    const on = (id, ev, fn) => { const el = this._el(id); if (el) el.addEventListener(ev, fn); };
     const it = this._item(this._selected);
     if (!it) return;
     const idx = this._items.indexOf(it);
-    on("up", "click", () => { this._move(idx, idx - 1); this._reselect(it); });
-    on("down", "click", () => { this._move(idx, idx + 2); this._reselect(it); });
+    const step = (to) => { if (this._move(idx, to)) { this._select(it); this._edited(); } };
+    on("up", "click", () => step(idx - 1));
+    on("down", "click", () => step(idx + 2));
     if (it.heading !== undefined) {
-      on("heading", "change", (e) => { it.heading = e.target.value.trim() || "Überschrift"; this._dirty = true; this._render(); });
-      on("delheading", "click", () => { this._items.splice(idx, 1); this._selected = null; this._dirty = true; this._render(); });
+      on("heading", "change", (e) => { it.heading = e.target.value.trim() || "Überschrift"; this._edited(false); });
+      on("delheading", "click", () => { this._items.splice(idx, 1); this._selected = null; this._edited(); });
       return;
     }
-    on("name", "change", (e) => this._change({ name: e.target.value.trim() }));
+    on("name", "change", (e) => this._change({ name: e.target.value.trim() }, false));
     on("color_on", "change", (e) => this._change({ color_on: e.target.value.toUpperCase() }));
     on("color_off", "change", (e) => this._change({ color_off: e.target.value.toUpperCase() }));
     on("reset_on", "click", () => this._change({ color_on: "" }));
     on("reset_off", "click", () => this._change({ color_off: "" }));
-    on("hide_name", "change", (e) => this._change({ hide_name: e.target.checked }));
-    on("hide_state", "change", (e) => this._change({ hide_state: e.target.checked }));
+    on("hide_name", "change", (e) => this._change({ hide_name: e.target.checked }, false));
+    on("hide_state", "change", (e) => this._change({ hide_state: e.target.checked }, false));
     on("pickicon", "click", () => r.getElementById("iconfile").click());
     on("pickimage", "click", () => r.getElementById("imagefile").click());
     on("clearicon", "click", () => this._change({ icon_image: "" }));
     on("clearimage", "click", () => this._change({ image: "" }));
     on("iconfile", "change", (e) => e.target.files[0] && this._upload(e.target.files[0], "icon_image"));
     on("imagefile", "change", (e) => e.target.files[0] && this._upload(e.target.files[0], "image"));
-    r.querySelectorAll("[data-size]").forEach((b) => b.addEventListener("click", () => this._change({ size: b.dataset.size === "1x1" ? "" : b.dataset.size })));
+    r.querySelectorAll("#props [data-size]").forEach((b) => b.addEventListener("click", () => this._change({ size: b.dataset.size === "1x1" ? "" : b.dataset.size })));
 
     // Home Assistants eigene Symbolauswahl, mit Suche.
-    const holder = r.getElementById("iconpicker");
+    const holder = this._el("iconpicker");
     if (holder) {
       const picker = document.createElement("ha-icon-picker");
       picker.hass = this._hass;
       picker.value = it.icon || "";
       picker.placeholder = this._defaultIcon(it.entity);
-      picker.addEventListener("value-changed", (e) => this._change({ icon: e.detail.value || "" }));
+      picker.addEventListener("value-changed", (e) => this._change({ icon: e.detail.value || "" }, false));
       holder.appendChild(picker);
     }
-  }
-
-  _reselect(it) { this._selected = it.heading !== undefined ? "#" + this._items.indexOf(it) : it.entity; this._render(); }
-
-  _refreshDevices() {
-    const pane = this.shadowRoot.getElementById("devpane");
-    if (!pane) return;
-    const q = pane.querySelector("#q");
-    const caret = q ? q.selectionStart : 0;
-    pane.innerHTML = this._devicesHtml();
-    const nq = pane.querySelector("#q");
-    nq.focus();
-    nq.setSelectionRange(caret, caret);
-    nq.addEventListener("input", (e) => { this._filter.text = e.target.value; this._refreshDevices(); });
-    pane.querySelector("#area").addEventListener("change", (e) => { this._filter.area = e.target.value; this._render(); });
-    pane.querySelector("#domain").addEventListener("change", (e) => { this._filter.domain = e.target.value; this._render(); });
-    pane.querySelector("#only").addEventListener("change", (e) => { this._filter.only = e.target.checked; this._render(); });
-    this._wireDevices();
-  }
-
-  _wireDevices() {
-    this.shadowRoot.querySelectorAll(".dev input").forEach((box) => {
-      box.addEventListener("change", (e) => this._toggleDevice(e.target.closest(".dev").dataset.entity, e.target.checked));
-    });
-  }
-
-  _wireGrid() {
-    const r = this.shadowRoot;
-    let dragFrom = -1;
-    r.querySelectorAll("#grid [data-idx]").forEach((el) => {
-      el.addEventListener("click", () => { this._selected = el.dataset.sel; this._render(); });
-      el.addEventListener("dragstart", (e) => { dragFrom = Number(el.dataset.idx); e.dataTransfer.effectAllowed = "move"; });
-      el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("drop"); });
-      el.addEventListener("dragleave", () => el.classList.remove("drop"));
-      el.addEventListener("drop", (e) => {
-        e.preventDefault();
-        el.classList.remove("drop");
-        const it = this._items[dragFrom];
-        this._move(dragFrom, Number(el.dataset.idx));
-        if (it) this._reselect(it);
-      });
-    });
   }
 }
 
