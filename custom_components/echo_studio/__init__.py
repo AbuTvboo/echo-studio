@@ -28,6 +28,7 @@ from homeassistant.helpers.storage import Store
 
 from .const import (
     DOMAIN,
+    EVENT_UPDATED,
     FILES_DIR,
     FILES_URL,
     IMAGE_TYPES,
@@ -45,7 +46,7 @@ from .layout import LayoutError, clean_layout, files_in
 
 _LOGGER = logging.getLogger(__name__)
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 
 
@@ -139,6 +140,8 @@ async def ws_layout_save(hass: HomeAssistant, connection: websocket_api.ActiveCo
     old = files_in(data.layout)
     data.layout = layout
     await data.store.async_save(layout)
+    # Die Echo Show hört darauf und liest die Gestaltung gleich neu.
+    hass.bus.async_fire(EVENT_UPDATED, {"items": len(layout["items"])})
     unused = old - files_in(layout)
     if unused:
         await hass.async_add_executor_job(_remove_files, data.files, unused)

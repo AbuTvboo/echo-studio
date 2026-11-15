@@ -52,25 +52,38 @@ input[type=search], input[type=text], select { width:100%; padding:8px 10px; bor
 .dev .n div { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .dev .n small { color:var(--secondary-text-color); }
 .dev.off { opacity:.5; cursor:default; }
-.screen { background:#14110f; border-radius:22px; padding:18px; aspect-ratio:16/10; width:100%; max-width:960px; margin:0 auto;
-  box-shadow:0 0 0 10px #050505, 0 10px 30px rgba(0,0,0,.4); overflow:auto; }
-.grid { display:grid; grid-template-columns:repeat(4, 1fr); grid-auto-rows:41px; gap:10px; }
-.heading { grid-column:1 / -1; align-self:end; color:#e8dcc8; font-size:15px; padding:6px 4px 0; display:flex; align-items:center; gap:8px;
-  cursor:pointer; border-radius:8px; }
+/* Die Vorschau zeichnet wie die Echo Show 8 (1280 × 800): Ränder, Abstände und Größen in den Maßen
+   von TECHO5 (drawn_cards.go), umgerechnet auf die Breite der Vorschau (--u ist eine Einheit). */
+.screen { container-type:inline-size; width:100%; max-width:960px; margin:0 auto; border-radius:18px;
+  box-shadow:0 0 0 10px #050505, 0 10px 30px rgba(0,0,0,.4); overflow:hidden; background:#1c1511; }
+.page { --u:0.10417cqw; aspect-ratio:16/10; overflow:auto; display:flex; gap:calc(var(--u)*12);
+  padding:calc(var(--u)*12) calc(var(--u)*20); font-family:var(--paper-font-body1_-_font-family, Roboto, sans-serif); }
+.col { flex:1; min-width:0; display:flex; flex-direction:column; gap:calc(var(--u)*12); }
+.sec { display:flex; flex-direction:column; gap:calc(var(--u)*12); }
+.heading { height:calc(var(--u)*46); display:flex; align-items:center; color:#e8dcc8; font-weight:700;
+  font-size:calc(var(--u)*36); padding:0 calc(var(--u)*4); cursor:pointer; border-radius:8px; white-space:nowrap; overflow:hidden; }
 .heading.sel { outline:2px solid ${AMBER}; }
-.tile { grid-row:span 2; position:relative; border-radius:16px; background:#3a3029; color:#e8dcc8; padding:10px 12px; cursor:grab;
-  display:flex; flex-direction:column; justify-content:space-between; overflow:hidden; background-size:cover; background-position:center; }
-.tile.w2 { grid-column:span 2; } .tile.h2 { grid-row:span 4; }
-.tile.on { background-color:${AMBER}; color:#1c1206; }
+.tiles { display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:calc(var(--u)*84); gap:calc(var(--u)*12); }
+.tile { position:relative; border-radius:calc(var(--u)*18); background:#2e2723; color:#e8dcc8; cursor:grab;
+  display:flex; align-items:center; gap:calc(var(--u)*12); padding:0 calc(var(--u)*12); overflow:hidden;
+  background-size:cover; background-position:center; }
+.tile.w2 { grid-column:span 2; } .tile.h2 { grid-row:span 2; }
 .tile.sel { outline:3px solid #fff; outline-offset:2px; }
-.tile.drop { box-shadow:-4px 0 0 0 ${AMBER}; }
-.tile .shade { position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,.05), rgba(0,0,0,.55)); pointer-events:none; }
+.tile.drop { box-shadow:calc(var(--u)*-6) 0 0 0 ${AMBER}; }
+.tile .shade { position:absolute; inset:0; background:linear-gradient(180deg, transparent 35%, var(--shade, rgba(0,0,0,.6))); pointer-events:none; }
 .tile > * { position:relative; }
-.tile ha-icon { --mdc-icon-size:30px; }
-.tile img.ico { width:30px; height:30px; object-fit:contain; }
-.tile .name { font-size:15px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.tile .val { font-size:12px; opacity:.85; }
-.empty { color:#8a7d6c; text-align:center; padding:40px 10px; grid-column:1 / -1; }
+.badge { flex:none; width:calc(var(--u)*44); height:calc(var(--u)*44); border-radius:50%; display:flex; align-items:center;
+  justify-content:center; background:var(--badge, #3b332e); color:var(--ink, #8a7d6c); }
+.badge.plain { background:none; }
+.badge ha-icon { --mdc-icon-size:calc(var(--u)*26); }
+.badge img { width:100%; height:100%; object-fit:contain; }
+.tile.solo { justify-content:center; }
+.tile.solo .badge { width:60%; height:60%; aspect-ratio:1; max-height:calc(100% - var(--u)*12); }
+.tile.solo .badge ha-icon { --mdc-icon-size:calc(var(--u)*56); }
+.txt { min-width:0; }
+.tile .name { font-size:calc(var(--u)*29); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.1; }
+.tile .val { font-size:calc(var(--u)*21); color:var(--sub, #8a7d6c); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.empty { color:#8a7d6c; text-align:center; padding:40px 10px; flex:1; font-size:14px; }
 .props label { display:block; font-size:12px; color:var(--secondary-text-color); margin:12px 0 4px; }
 .row { display:flex; align-items:center; gap:8px; }
 .row input[type=color] { width:44px; height:34px; border:0; background:none; padding:0; }
@@ -315,9 +328,9 @@ class EchoStudioPanel extends HTMLElement {
       ${this._error ? `<div class="error">${this._esc(this._error)}</div>` : ""}
       ${this._loaded ? `<div class="main">
         <div class="pane" id="devpane">${this._devicesHtml()}</div>
-        <div class="pane"><h2>Vorschau der Echo Show</h2><div class="screen"><div class="grid" id="grid">${this._previewHtml()}</div></div>
+        <div class="pane"><h2>Vorschau der Echo Show</h2><div class="screen"><div class="page" id="grid">${this._previewHtml()}</div></div>
           <div class="actions"><button id="addheading">+ Überschrift</button>
-          <span class="hint">Karten ziehen zum Sortieren, antippen zum Gestalten. Nach dem Speichern zeigt die Echo Show die neue Gestaltung, sobald ihr Dashboard neu öffnet (spätestens nach 5 Minuten).</span></div></div>
+          <span class="hint">Karten ziehen zum Sortieren, antippen zum Gestalten. Die Echo Show zeigt die neue Gestaltung gleich nach dem Speichern. Überschriften teilen die Karten in Abschnitte; die Echo Show verteilt sie auf zwei Spalten.</span></div></div>
         <div class="pane props" id="props">${this._propsHtml()}</div>
       </div>` : `<div class="pane" style="margin:16px">Lade …</div>`}`;
     [...r.querySelectorAll(".pane")].forEach((p, i) => { if (scroll[i]) p.scrollTop = scroll[i]; });
@@ -367,26 +380,89 @@ class EchoStudioPanel extends HTMLElement {
     return html;
   }
 
-  _previewHtml() {
-    if (!this._items.length) return `<div class="empty">Noch keine Karten. Hake links die Geräte an, die auf der Echo Show erscheinen sollen.</div>`;
-    return this._items.map((it, idx) => {
+  // Die Abschnitte: eine Überschrift beginnt einen, was davor steht, ist einer ohne Überschrift.
+  _sections() {
+    const out = [];
+    let cur = { heading: null, idx: -1, items: [] };
+    this._items.forEach((it, idx) => {
       if (it.heading !== undefined) {
-        return `<div class="heading ${this._selected === "#" + idx ? "sel" : ""}" draggable="true" data-idx="${idx}" data-sel="#${idx}">${this._esc(it.heading)}</div>`;
-      }
-      const on = this._isOn(it.entity);
-      const color = on ? it.color_on || AMBER : it.color_off || "";
-      const img = it.image ? this._url(it.image) : "";
-      const icoImg = it.icon_image ? this._url(it.icon_image) : "";
-      const size = it.size || "1x1";
-      const style = [color ? `background-color:${color}` : "", img ? `background-image:url('${img}')` : ""].filter(Boolean).join(";");
-      return `<div class="tile ${on ? "on" : ""} ${size[0] === "2" ? "w2" : ""} ${size[2] === "2" ? "h2" : ""} ${this._selected === it.entity ? "sel" : ""}"
-          draggable="true" data-idx="${idx}" data-sel="${it.entity}" style="${style}${img ? ";color:#fff" : ""}">
-        ${img ? `<div class="shade"></div>` : ""}
-        ${icoImg ? `<img class="ico" src="${icoImg}">` : `<ha-icon icon="${this._esc(it.icon || this._defaultIcon(it.entity))}"></ha-icon>`}
-        <div>${it.hide_name ? "" : `<div class="name">${this._esc(it.name || this._friendly(it.entity))}</div>`}
-        ${it.hide_state ? "" : `<div class="val">${this._esc(this._stateText(it.entity))}</div>`}</div></div>`;
-    }).join("");
+        if (cur.items.length || cur.heading !== null) out.push(cur);
+        cur = { heading: it.heading, idx, items: [] };
+      } else cur.items.push({ it, idx });
+    });
+    if (cur.items.length || cur.heading !== null) out.push(cur);
+    return out;
   }
+
+  // Wie hoch ein Abschnitt auf der Echo Show wird (in ihren Einheiten), um ihn wie sie in die
+  // kürzere der beiden Spalten zu legen.
+  _sectionHeight(sec) {
+    let h = sec.heading !== null ? 46 + 12 : 0;
+    let col = 0, line = 0, lines = 0;
+    for (const { it } of sec.items) {
+      const size = it.size || "1x1", span = size === "1x1" ? 1 : 2, n = size === "2x2" ? 2 : 1;
+      if (col > 0 && col + span > 2) { lines += line + 12; col = 0; line = 0; }
+      line = Math.max(line, n * 84 + (n - 1) * 12);
+      col += span;
+      if (col >= 2) { lines += line + 12; col = 0; line = 0; }
+    }
+    if (col > 0) lines += line + 12;
+    return h + lines;
+  }
+
+  _previewHtml() {
+    const secs = this._sections();
+    if (!secs.length) return `<div class="empty">Noch keine Karten. Hake links die Geräte an, die auf der Echo Show erscheinen sollen.</div>`;
+    const cols = [[], []], heights = [0, 0];
+    for (const sec of secs) {
+      const c = heights[1] < heights[0] ? 1 : 0;
+      cols[c].push(sec);
+      heights[c] += this._sectionHeight(sec) + 12;
+    }
+    return cols.map((col) => `<div class="col">${col.map((sec) => `<div class="sec">
+      ${sec.heading !== null ? `<div class="heading ${this._selected === "#" + sec.idx ? "sel" : ""}" draggable="true" data-idx="${sec.idx}" data-sel="#${sec.idx}">${this._esc(sec.heading)}</div>` : ""}
+      ${sec.items.length ? `<div class="tiles">${sec.items.map(({ it, idx }) => this._tileHtml(it, idx)).join("")}</div>` : ""}</div>`).join("")}</div>`).join("");
+  }
+
+  // Eine Karte, wie die Echo Show sie zeichnet (drawn_cards.go tile, drawn_studio_ottoman.go): dunkel,
+  // ein runder Kreis ums Symbol, der leuchtet, wenn sie an ist; mit eigener Farbe die ganze Karte in
+  // ihr, mit Bild das Bild und unten dunkler.
+  _tileHtml(it, idx) {
+    const on = this._isOn(it.entity);
+    const size = it.size || "1x1";
+    const fill = on ? it.color_on : it.color_off;
+    const img = it.image ? this._url(it.image) : "";
+    const icoImg = it.icon_image ? this._url(it.icon_image) : "";
+    const plain = !!(fill || it.image);
+    const vars = [];
+    let ink = "#8a7d6c";
+    if (it.image) {
+      vars.push(`background-image:url('${img}')`, "color:#fff", "--sub:#e8e8e8");
+      if (on) vars.push(`--shade:${this._half(it.color_on || AMBER)}`);
+      ink = "#fff";
+    } else if (fill) {
+      const dark = this._luma(fill) < 140;
+      ink = dark ? "#fff" : "#1c1206";
+      vars.push(`background:${fill}`, `color:${ink}`, `--sub:${dark ? "rgba(255,255,255,.75)" : "rgba(28,18,6,.75)"}`);
+    } else {
+      const tint = it.color_on || (on ? AMBER : "");
+      if (tint) { ink = tint; vars.push(`--badge:${this._mix("#2e2723", tint, 0.22)}`); }
+    }
+    vars.push(`--ink:${ink}`);
+    const solo = it.hide_name && it.hide_state;
+    const icon = icoImg ? `<img src="${icoImg}">` : `<ha-icon icon="${this._esc(it.icon || this._defaultIcon(it.entity))}"></ha-icon>`;
+    return `<div class="tile ${size !== "1x1" ? "w2" : ""} ${size === "2x2" ? "h2" : ""} ${solo ? "solo" : ""} ${this._selected === it.entity ? "sel" : ""}"
+        draggable="true" data-idx="${idx}" data-sel="${it.entity}" style="${vars.join(";")}">
+      ${it.image ? `<div class="shade"></div>` : ""}
+      <div class="badge ${plain || icoImg ? "plain" : ""}">${icon}</div>
+      ${solo ? "" : `<div class="txt">${it.hide_name ? "" : `<div class="name">${this._esc(it.name || this._friendly(it.entity))}</div>`}
+        ${it.hide_state ? "" : `<div class="val">${this._esc(this._stateText(it.entity))}</div>`}</div>`}</div>`;
+  }
+
+  _rgb(hex) { const v = parseInt(hex.slice(1), 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; }
+  _luma(hex) { const [r, g, b] = this._rgb(hex); return 0.299 * r + 0.587 * g + 0.114 * b; }
+  _mix(a, b, t) { const x = this._rgb(a), y = this._rgb(b); return `rgb(${x.map((v, i) => Math.round(v + (y[i] - v) * t)).join(",")})`; }
+  _half(hex) { const [r, g, b] = this._rgb(hex); return `rgba(${r >> 1},${g >> 1},${b >> 1},.67)`; }
 
   _propsHtml() {
     const it = this._item(this._selected);

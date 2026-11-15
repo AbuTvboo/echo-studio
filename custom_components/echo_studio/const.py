@@ -12,6 +12,9 @@ PANEL_ICON = "mdi:tablet-dashboard"
 PANEL_ELEMENT = "echo-studio-panel"
 STATIC_URL = "/echo_studio_static"
 
+# Ereignis nach dem Speichern: die Echo Show lädt dann neu
+EVENT_UPDATED = "echo_studio_updated"
+
 # Gespeicherte Gestaltung
 STORAGE_KEY = "echo_studio.layout"
 STORAGE_VERSION = 1
