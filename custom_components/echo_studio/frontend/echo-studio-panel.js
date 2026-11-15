@@ -55,35 +55,41 @@ input[type=search], input[type=text], select { width:100%; padding:8px 10px; bor
 /* Die Vorschau zeichnet wie die Echo Show 8 (1280 × 800): Ränder, Abstände und Größen in den Maßen
    von TECHO5 (drawn_cards.go), umgerechnet auf die Breite der Vorschau (--u ist eine Einheit). */
 .screen { container-type:inline-size; width:100%; max-width:960px; margin:0 auto; border-radius:18px;
-  box-shadow:0 0 0 10px #050505, 0 10px 30px rgba(0,0,0,.4); overflow:hidden; background:#1c1511; }
-.page { --u:0.10417cqw; aspect-ratio:16/10; overflow:auto; display:flex; gap:calc(var(--u)*12);
+  box-shadow:0 0 0 10px #050505, 0 10px 30px rgba(0,0,0,.4); overflow:hidden;
+  /* die Farben des Home-Assistant-Designs, wie die Echo Show sie übernimmt (dashboard/theme.go) */
+  --e-bg:var(--primary-background-color, #111); --e-card:var(--ha-card-background, var(--card-background-color, #1c1c1c));
+  --e-text:var(--primary-text-color, #e1e1e1); --e-sub:var(--secondary-text-color, #9b9b9b);
+  --e-active:var(--state-light-on-color, #ff9800); /* die Echo Show nimmt diese, sonst Orange */
+  --e-rad:var(--ha-card-border-radius, 12px); background:var(--e-bg); }
+.page { --u:0.10417cqw; aspect-ratio:16/10; overflow:auto; display:flex; position:relative; gap:calc(var(--u)*12);
   padding:calc(var(--u)*12) calc(var(--u)*20); font-family:var(--paper-font-body1_-_font-family, Roboto, sans-serif); }
 .col { flex:1; min-width:0; display:flex; flex-direction:column; gap:calc(var(--u)*12); }
 .sec { display:flex; flex-direction:column; gap:calc(var(--u)*12); }
-.heading { height:calc(var(--u)*46); display:flex; align-items:center; color:#e8dcc8; font-weight:700;
+.heading { height:calc(var(--u)*46); display:flex; align-items:center; color:var(--e-text); font-weight:700;
   font-size:calc(var(--u)*36); padding:0 calc(var(--u)*4); cursor:pointer; border-radius:8px; white-space:nowrap; overflow:hidden; }
 .heading.sel { outline:2px solid ${AMBER}; }
-.tiles { display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:calc(var(--u)*84); gap:calc(var(--u)*12); }
-.tile { position:relative; border-radius:calc(var(--u)*18); background:#2e2723; color:#e8dcc8; cursor:grab;
-  display:flex; align-items:center; gap:calc(var(--u)*12); padding:0 calc(var(--u)*12); overflow:hidden;
+.tiles { display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:calc(var(--u)*var(--th, 84)); gap:calc(var(--u)*12); }
+.fill { position:absolute; inset:calc(var(--u)*20); display:grid; gap:calc(var(--u)*12); }
+.tile { --k:1; position:relative; border-radius:var(--e-rad); background:var(--e-card); color:var(--e-text); cursor:grab;
+  display:flex; align-items:center; gap:calc(var(--u)*12*var(--k)); padding:0 calc(var(--u)*12*var(--k)); overflow:hidden;
   background-size:cover; background-position:center; }
 .tile.w2 { grid-column:span 2; } .tile.h2 { grid-row:span 2; }
 .tile.sel { outline:3px solid #fff; outline-offset:2px; }
 .tile.drop { box-shadow:calc(var(--u)*-6) 0 0 0 ${AMBER}; }
 .tile .shade { position:absolute; inset:0; background:linear-gradient(180deg, transparent 35%, var(--shade, rgba(0,0,0,.6))); pointer-events:none; }
 .tile > * { position:relative; }
-.badge { flex:none; width:calc(var(--u)*44); height:calc(var(--u)*44); border-radius:50%; display:flex; align-items:center;
-  justify-content:center; background:var(--badge, #3b332e); color:var(--ink, #8a7d6c); }
+.badge { flex:none; width:calc(var(--u)*44*var(--k)); height:calc(var(--u)*44*var(--k)); border-radius:50%; display:flex; align-items:center;
+  justify-content:center; background:var(--badge, color-mix(in srgb, var(--e-card) 86%, var(--e-sub))); color:var(--ink, var(--e-sub)); }
 .badge.plain { background:none; }
-.badge ha-icon { --mdc-icon-size:calc(var(--u)*26); }
+.badge ha-icon { --mdc-icon-size:calc(var(--u)*26*var(--k)); }
 .badge img { width:100%; height:100%; object-fit:contain; }
 .tile.solo { justify-content:center; }
 .tile.solo .badge { width:60%; height:60%; aspect-ratio:1; max-height:calc(100% - var(--u)*12); }
 .tile.solo .badge ha-icon { --mdc-icon-size:calc(var(--u)*56); }
 .txt { min-width:0; }
-.tile .name { font-size:calc(var(--u)*29); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.1; }
-.tile .val { font-size:calc(var(--u)*21); color:var(--sub, #8a7d6c); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.empty { color:#8a7d6c; text-align:center; padding:40px 10px; flex:1; font-size:14px; }
+.tile .name { font-size:calc(var(--u)*29*var(--k)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.1; }
+.tile .val { font-size:calc(var(--u)*21*var(--k)); color:var(--sub, var(--e-sub)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.empty { color:var(--e-sub); text-align:center; padding:40px 10px; flex:1; font-size:14px; }
 .props label { display:block; font-size:12px; color:var(--secondary-text-color); margin:12px 0 4px; }
 .row { display:flex; align-items:center; gap:8px; }
 .row input[type=color] { width:44px; height:34px; border:0; background:none; padding:0; }
@@ -188,6 +194,9 @@ class EchoStudioPanel extends HTMLElement {
   _stateText(id) {
     const st = this._hass.states[id];
     if (!st) return "Nicht verfügbar";
+    if (id.startsWith("sensor.") && typeof this._hass.formatEntityState === "function") {
+      try { return this._hass.formatEntityState(st); } catch (_) { /* wie unten */ }
+    }
     const domain = id.split(".")[0];
     if (domain === "scene") return "Szene";
     if (domain === "script") return "Skript";
@@ -330,7 +339,7 @@ class EchoStudioPanel extends HTMLElement {
         <div class="pane" id="devpane">${this._devicesHtml()}</div>
         <div class="pane"><h2>Vorschau der Echo Show</h2><div class="screen"><div class="page" id="grid">${this._previewHtml()}</div></div>
           <div class="actions"><button id="addheading">+ Überschrift</button>
-          <span class="hint">Karten ziehen zum Sortieren, antippen zum Gestalten. Die Echo Show zeigt die neue Gestaltung gleich nach dem Speichern. Überschriften teilen die Karten in Abschnitte; die Echo Show verteilt sie auf zwei Spalten.</span></div></div>
+          <span class="hint">Karten ziehen zum Sortieren, antippen zum Gestalten. Die Echo Show zeigt die neue Gestaltung gleich nach dem Speichern. Überschriften teilen die Karten in Abschnitte; die Echo Show verteilt sie auf zwei Spalten. Steht sie auf „Fill the screen“, legt sie bis zu neun Karten groß über den ganzen Bildschirm und lässt Überschriften und Größen weg.</span></div></div>
         <div class="pane props" id="props">${this._propsHtml()}</div>
       </div>` : `<div class="pane" style="margin:16px">Lade …</div>`}`;
     [...r.querySelectorAll(".pane")].forEach((p, i) => { if (scroll[i]) p.scrollTop = scroll[i]; });
@@ -396,13 +405,13 @@ class EchoStudioPanel extends HTMLElement {
 
   // Wie hoch ein Abschnitt auf der Echo Show wird (in ihren Einheiten), um ihn wie sie in die
   // kürzere der beiden Spalten zu legen.
-  _sectionHeight(sec) {
+  _sectionHeight(sec, th = 84) {
     let h = sec.heading !== null ? 46 + 12 : 0;
     let col = 0, line = 0, lines = 0;
     for (const { it } of sec.items) {
       const size = it.size || "1x1", span = size === "1x1" ? 1 : 2, n = size === "2x2" ? 2 : 1;
       if (col > 0 && col + span > 2) { lines += line + 12; col = 0; line = 0; }
-      line = Math.max(line, n * 84 + (n - 1) * 12);
+      line = Math.max(line, n * th + (n - 1) * 12);
       col += span;
       if (col >= 2) { lines += line + 12; col = 0; line = 0; }
     }
@@ -410,26 +419,49 @@ class EchoStudioPanel extends HTMLElement {
     return h + lines;
   }
 
+  // Die Einstellungen der Echo Show, die bestimmen, wie sie das Dashboard legt: „Dashboard tiles“
+  // (Normal, Large, Fill the screen). Gelesen aus ihrer Entität in Home Assistant.
+  _echoTiles() {
+    const id = Object.keys(this._hass.states).find((e) => /^select\..*_dashboard_tiles$/.test(e));
+    const v = id ? this._hass.states[id].state : "";
+    return v === "Fill the screen" ? "fill" : v === "Large" ? "large" : "";
+  }
+
   _previewHtml() {
     const secs = this._sections();
     if (!secs.length) return `<div class="empty">Noch keine Karten. Hake links die Geräte an, die auf der Echo Show erscheinen sollen.</div>`;
-    const cols = [[], []], heights = [0, 0];
-    for (const sec of secs) {
-      const c = heights[1] < heights[0] ? 1 : 0;
-      cols[c].push(sec);
-      heights[c] += this._sectionHeight(sec) + 12;
+    const mode = this._echoTiles();
+    const tiles = secs.flatMap((s) => s.items);
+    // Fill the screen: bis zu neun Karten über den ganzen Bildschirm, Überschriften und Größen gelten
+    // dann nicht (drawn_fill.go).
+    if (mode === "fill" && tiles.length && tiles.length <= 9) {
+      const n = tiles.length, cols = n <= 1 ? 1 : n === 2 || n === 4 ? 2 : 3, rows = Math.ceil(n / cols);
+      const tw = (920 - 12 * (cols - 1)) / cols, th = (560 - 12 * (rows - 1)) / rows;
+      const k = Math.min(th / 84, tw / 220, 2.5);
+      return `<div class="fill" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr)">
+        ${tiles.map(({ it, idx }) => this._tileHtml(it, idx, k >= 1.05 ? k : 1, true)).join("")}</div>`;
     }
+    const large = mode === "large";
+    const ncols = large ? Math.max(1, Math.min(2, secs.length)) : 2;
+    const cols = Array.from({ length: ncols }, () => []), heights = new Array(ncols).fill(0);
+    for (const sec of secs) {
+      let c = 0;
+      heights.forEach((h, i) => { if (h < heights[c]) c = i; });
+      cols[c].push(sec);
+      heights[c] += this._sectionHeight(sec, large ? 126 : 84) + 12;
+    }
+    const k = large ? Math.min(126 / 84, (ncols === 1 ? 454 : 221) / 220) : 1;
     return cols.map((col) => `<div class="col">${col.map((sec) => `<div class="sec">
       ${sec.heading !== null ? `<div class="heading ${this._selected === "#" + sec.idx ? "sel" : ""}" draggable="true" data-idx="${sec.idx}" data-sel="#${sec.idx}">${this._esc(sec.heading)}</div>` : ""}
-      ${sec.items.length ? `<div class="tiles">${sec.items.map(({ it, idx }) => this._tileHtml(it, idx)).join("")}</div>` : ""}</div>`).join("")}</div>`).join("");
+      ${sec.items.length ? `<div class="tiles" style="--th:${large ? 126 : 84}">${sec.items.map(({ it, idx }) => this._tileHtml(it, idx, k >= 1.05 ? k : 1)).join("")}</div>` : ""}</div>`).join("")}</div>`).join("");
   }
 
   // Eine Karte, wie die Echo Show sie zeichnet (drawn_cards.go tile, drawn_studio_ottoman.go): dunkel,
   // ein runder Kreis ums Symbol, der leuchtet, wenn sie an ist; mit eigener Farbe die ganze Karte in
   // ihr, mit Bild das Bild und unten dunkler.
-  _tileHtml(it, idx) {
+  _tileHtml(it, idx, k = 1, filled = false) {
     const on = this._isOn(it.entity);
-    const size = it.size || "1x1";
+    const size = filled ? "1x1" : it.size || "1x1";
     const fill = on ? it.color_on : it.color_off;
     const img = it.image ? this._url(it.image) : "";
     const icoImg = it.icon_image ? this._url(it.icon_image) : "";
@@ -445,10 +477,10 @@ class EchoStudioPanel extends HTMLElement {
       ink = dark ? "#fff" : "#1c1206";
       vars.push(`background:${fill}`, `color:${ink}`, `--sub:${dark ? "rgba(255,255,255,.75)" : "rgba(28,18,6,.75)"}`);
     } else {
-      const tint = it.color_on || (on ? AMBER : "");
-      if (tint) { ink = tint; vars.push(`--badge:${this._mix("#2e2723", tint, 0.22)}`); }
+      const tint = it.color_on || (on ? "var(--e-active)" : "");
+      if (tint) { ink = tint; vars.push(`--badge:color-mix(in srgb, var(--e-card) 78%, ${tint})`); }
     }
-    vars.push(`--ink:${ink}`);
+    vars.push(`--ink:${ink}`, `--k:${k.toFixed(3)}`);
     const solo = it.hide_name && it.hide_state;
     const icon = icoImg ? `<img src="${icoImg}">` : `<ha-icon icon="${this._esc(it.icon || this._defaultIcon(it.entity))}"></ha-icon>`;
     return `<div class="tile ${size !== "1x1" ? "w2" : ""} ${size === "2x2" ? "h2" : ""} ${solo ? "solo" : ""} ${this._selected === it.entity ? "sel" : ""}"
