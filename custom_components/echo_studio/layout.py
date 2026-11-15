@@ -5,12 +5,13 @@ Eine Gestaltung ist eine Liste von Einträgen in Anzeigereihenfolge:
     {"version": 1, "items": [
         {"heading": "Wohnzimmer"},
         {"entity": "light.eck_led", "name": "Eck-LED", "icon": "mdi:led-strip",
-         "icon_image": "", "image": "a1b2.jpg", "color_on": "#E9A23B", "color_off": "",
+         "icon_image": "", "icon_mask": "", "image": "a1b2.jpg", "color_on": "#E9A23B", "color_off": "",
          "hide_name": false, "hide_state": false, "size": "1x1"}
     ]}
 
 Eine Überschrift beginnt einen Abschnitt. Leere Felder heißen „wie die Echo Show es von sich aus
-zeigt“. Bilder sind Dateinamen im Ordner von Echo Studio (FILES_DIR).
+zeigt“. Bilder sind Dateinamen im Ordner von Echo Studio (FILES_DIR). icon_mask ist das Symbol
+als Maske (weiß auf durchsichtig), für ein Symbol, das die Echo Show nicht selbst kennt.
 """
 
 from __future__ import annotations
@@ -22,7 +23,10 @@ from .const import MAX_ITEMS, SIZES
 
 _ENTITY = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
 _COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
-_ICON = re.compile(r"^mdi:[a-z0-9-]+$")
+# mdi:… und Symbole aus Paketen wie Material Symbols (m3of:…); die Echo Show kennt nur mdi und
+# zeichnet die anderen nach ihrer Maske (icon_mask), die Echo Studio beim Auswählen erzeugt.
+_ICON = re.compile(r"^[a-z0-9_]{1,16}:[a-z0-9_-]{1,64}$")
+_FILE_KEYS = ("image", "icon_image", "icon_mask")
 _FILE = re.compile(r"^[a-f0-9]{8,40}\.(png|jpg|webp|svg)$")
 
 
@@ -63,12 +67,12 @@ def clean_layout(raw: Any) -> dict[str, Any]:
         name = _text(item.get("name"), 40)
         if name:
             tile["name"] = name
-        icon = _text(item.get("icon"), 64)
+        icon = _text(item.get("icon"), 82)
         if icon:
             if not _ICON.match(icon):
                 raise LayoutError(f"ungültiges Symbol: {icon!r}")
             tile["icon"] = icon
-        for key in ("image", "icon_image"):
+        for key in _FILE_KEYS:
             f = _text(item.get(key), 48)
             if f:
                 if not _FILE.match(f):
@@ -91,4 +95,4 @@ def clean_layout(raw: Any) -> dict[str, Any]:
 
 def files_in(layout: dict[str, Any]) -> set[str]:
     """Die Bilder, die eine Gestaltung braucht."""
-    return {i[k] for i in layout.get("items", []) for k in ("image", "icon_image") if i.get(k)}
+    return {i[k] for i in layout.get("items", []) for k in _FILE_KEYS if i.get(k)}

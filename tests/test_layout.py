@@ -46,7 +46,9 @@ def test_clean_keeps_what_is_set_and_drops_the_rest():
 @pytest.mark.parametrize("item", [
     {"entity": "not an entity"},
     {"entity": "light.x", "color_on": "red"},
-    {"entity": "light.x", "icon": "fa:bulb"},
+    {"entity": "light.x", "icon": "bulb"},
+    {"entity": "light.x", "icon": "mdi:<script>"},
+    {"entity": "light.x", "icon_mask": "../mask.png"},
     {"entity": "light.x", "image": "../../secrets.yaml"},
     "nope",
 ])
@@ -67,3 +69,11 @@ def test_unknown_size_falls_back_and_files_are_listed():
     ]})
     assert got["items"][0]["size"] == "1x1"
     assert layout.files_in(got) == {"abcdef0123456789abcdef01.jpg", "0123456789abcdef01234567.png"}
+
+
+def test_icons_from_other_sets_keep_their_mask():
+    got = layout.clean_layout({"items": [
+        {"entity": "sensor.feuchte", "icon": "m3of:humidity-high", "icon_mask": "0123456789abcdef01234567.png"},
+    ]})
+    assert got["items"][0]["icon"] == "m3of:humidity-high"
+    assert layout.files_in(got) == {"0123456789abcdef01234567.png"}

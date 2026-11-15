@@ -287,6 +287,9 @@ class EchoStudioPanel extends HTMLElement {
     this._busy = true;
     this._renderTop();
     try {
+      for (const it of this._items) {
+        if (this._foreign(it.icon) && !it.icon_mask) await this._makeMask(it).catch(() => {}); // ohne: das Standardsymbol
+      }
       const saved = await this._hass.callWS({ type: "echo_studio/layout/save", layout: { version: 1, items: this._items } });
       this._items = saved.items.map((i) => ({ ...i }));
       this._dirty = false;
@@ -334,6 +337,68 @@ class EchoStudioPanel extends HTMLElement {
 
   // Wählt die Karte oder Überschrift it, nachdem sie sich bewegt hat (ihr Index ist ein anderer).
   _select(it) { this._selected = it.heading !== undefined ? "#" + this._items.indexOf(it) : it.entity; }
+
+  // Ein Symbol, das nicht aus mdi kommt (etwa m3of: aus Material Symbols): die Echo Show kennt nur mdi.
+  _foreign(icon) { return !!icon && !icon.startsWith("mdi:"); }
+
+  // Der Umriss eines Symbols als SVG-Pfad: von dem Paket, das es in Home Assistant anmeldet
+  // (window.customIcons), sonst aus einem gezeichneten <ha-icon>.
+  async _iconPath(icon) {
+    const [prefix, name] = icon.split(":");
+    const set = window.customIcons && window.customIcons[prefix];
+    if (set && typeof set.getIcon === "function") {
+      try {
+        const got = await set.getIcon(name);
+        if (got && got.path) return { path: got.path, viewBox: got.viewBox || "0 0 24 24" };
+      } catch (_) { /* wie unten */ }
+    }
+    const el = document.createElement("ha-icon");
+    el.icon = icon;
+    el.style.cssText = "position:fixed;left:-200px;top:0;width:24px;height:24px";
+    document.body.appendChild(el);
+    try {
+      for (let i = 0; i < 40; i++) {
+        const svg = el.shadowRoot?.querySelector("ha-svg-icon")?.shadowRoot?.querySelector("svg");
+        const paths = svg ? [...svg.querySelectorAll("path")].map((p) => p.getAttribute("d")).filter(Boolean) : [];
+        if (paths.length) return { path: paths.join(" "), viewBox: svg.getAttribute("viewBox") || "0 0 24 24" };
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    } finally { el.remove(); }
+    return null;
+  }
+
+  // Zeichnet das Symbol von it als Maske (weiß auf durchsichtig, 128 Pixel) und lädt sie hoch: die
+  // Echo Show färbt sie wie ein eigenes Symbol. Ohne Umriss bleibt es beim Symbol, das sie selbst wählt.
+  async _makeMask(it) {
+    const icon = it.icon;
+    const shape = await this._iconPath(icon).catch(() => null);
+    if (!shape || it.icon !== icon) return;
+    const size = 128;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${this._esc(shape.viewBox)}"><path fill="#fff" d="${this._esc(shape.path)}"/></svg>`;
+    const img = new Image();
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = c.height = size;
+    c.getContext("2d").drawImage(img, 0, 0, size, size);
+    const data = c.toDataURL("image/png").split(",")[1];
+    const res = await this._hass.callWS({ type: "echo_studio/image/upload", content_type: "image/png", data });
+    if (it.icon === icon) it.icon_mask = res.file;
+  }
+
+  // Ein neues Symbol: aus mdi braucht es keine Maske, sonst wird sie gleich erzeugt.
+  async _setIcon(icon) {
+    const it = this._item(this._selected);
+    if (!it) return;
+    this._change({ icon, icon_mask: "" }, false);
+    if (!this._foreign(icon)) return;
+    try {
+      await this._makeMask(it);
+    } catch (err) {
+      this._error = "Symbol konnte nicht für die Echo Show vorbereitet werden: " + (err.message || err);
+      this._renderTop();
+    }
+  }
 
   // Ein Bild: auf dem Gerät verkleinert (ein Icon auf 192, ein Bild auf 960 Pixel), dann hochgeladen.
   async _upload(file, key) {
@@ -789,7 +854,7 @@ class EchoStudioPanel extends HTMLElement {
       picker.hass = this._hass;
       picker.value = it.icon || "";
       picker.placeholder = this._defaultIcon(it.entity);
-      picker.addEventListener("value-changed", (e) => this._change({ icon: e.detail.value || "" }, false));
+      picker.addEventListener("value-changed", (e) => this._setIcon(e.detail.value || ""));
       holder.appendChild(picker);
     }
   }
