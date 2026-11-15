@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Echo Studio",
+        "description": "Echo Studio adds a page to the sidebar for designing the cards of your Echo Show (TECHO5)."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Echo Studio is already set up."
+    }
+  }
+}
