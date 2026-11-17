@@ -48,7 +48,7 @@ button.link { background:none; padding:4px 8px; color:var(--primary-color); }
 .pane { background:var(--card-background-color); border-radius:12px; padding:12px; overflow:auto; min-height:0; }
 .pane h2 { font-size:15px; margin:4px 4px 10px; font-weight:500; }
 @media (max-width:1100px) { .main { grid-template-columns:1fr; height:auto; } .pane { max-height:none; } }
-input[type=search], input[type=text], select { width:100%; padding:8px 10px; border-radius:8px; font:inherit;
+input[type=search], input[type=text], input[type=password], select { width:100%; padding:8px 10px; border-radius:8px; font:inherit;
   border:1px solid var(--divider-color); background:var(--primary-background-color); color:inherit; }
 .filters { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0; }
 .group { margin:12px 4px 4px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--secondary-text-color); }
@@ -117,6 +117,29 @@ input[type=search], input[type=text], select { width:100%; padding:8px 10px; bor
 .error { background:#b71c1c; color:#fff; padding:8px 12px; border-radius:8px; margin:0 16px; }
 .error:empty { display:none; }
 .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+/* Der TV-Zugang: ein Fenster über der Seite */
+.top button.tv { display:flex; align-items:center; gap:6px; }
+.top button.tv ha-icon { --mdc-icon-size:18px; }
+.dlg-back { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; z-index:10; padding:16px; }
+.dlg { background:var(--card-background-color); color:var(--primary-text-color); border-radius:16px; width:min(520px,100%);
+  box-shadow:0 20px 50px rgba(0,0,0,.5); padding:22px 24px; max-height:calc(100vh - 32px); overflow:auto; }
+.dlg h2 { margin:0 0 4px; font-size:20px; font-weight:500; display:flex; align-items:center; gap:10px; }
+.dlg h2 ha-icon { color:${AMBER}; }
+.dlg .lead { color:var(--secondary-text-color); font-size:13px; margin:0 0 14px; line-height:1.45; }
+.dlg label { display:block; font-size:12px; color:var(--secondary-text-color); margin:14px 0 5px; }
+.dlg .pw { position:relative; }
+.dlg .pw button { position:absolute; right:4px; top:50%; transform:translateY(-50%); background:none; padding:6px; color:var(--secondary-text-color); }
+.dlg .pw input { padding-right:40px; }
+.pill { display:inline-flex; align-items:center; gap:8px; padding:7px 12px; border-radius:16px; font-size:13px; margin-top:16px;
+  background:var(--secondary-background-color); }
+.pill .dot { width:9px; height:9px; border-radius:50%; background:#8a8f98; }
+.pill.ok .dot { background:#43a047; } .pill.wait .dot { background:${AMBER}; } .pill.bad .dot { background:#e53935; }
+.dlg .seg { margin:4px 0 2px; }
+.dlg .row2 { display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; margin-top:20px; }
+.dlg .row2 .right { display:flex; gap:8px; }
+.dlg .note { font-size:12px; color:var(--secondary-text-color); margin-top:14px; line-height:1.4; }
+.dlg .warn { background:rgba(233,162,59,.15); border-radius:10px; padding:10px 12px; font-size:13px; margin-top:12px;
+  display:flex; align-items:center; justify-content:space-between; gap:10px; }
 `;
 
 class EchoStudioPanel extends HTMLElement {
@@ -147,6 +170,7 @@ class EchoStudioPanel extends HTMLElement {
     const first = !this._hass;
     this._hass = hass;
     if (first) { this._load(); return; }
+    if (this._tvOpen) this._tvStatusUpdate();
     if (!this._loaded) return;
     const sig = this._stateSig();
     if (sig !== this._sig) this._previewSoon();
@@ -460,6 +484,7 @@ class EchoStudioPanel extends HTMLElement {
       <div class="top">
         <h1>Echo Studio</h1>
         <span class="state" id="state"></span>
+        <button class="tv" id="tvbtn"><ha-icon icon="mdi:television-play"></ha-icon>TV-Zugang</button>
         <button class="primary" id="save">Speichern</button>
       </div>
       <div class="error" id="error"></div>
@@ -737,6 +762,182 @@ class EchoStudioPanel extends HTMLElement {
     this._wireProps();
   }
 
+  // --- TV-Zugang (Xtream Codes für den Reiter TV der Echo Show, Hilal OS) -------------------------
+  //
+  // Zwei Arten: Xtream Codes (Server, Benutzername, Passwort; Aktion esphome.<gerät>_iptv_account) oder
+  // eine M3U-Liste (ein Link; Aktion …_iptv_playlist). Echo Studio speichert davon nichts; die Echo
+  // Show prüft den Zugang und meldet, wie es steht (sensor.<gerät>_iptv_status), welcher Server es ist
+  // (…_iptv_server, ohne Zugangsdaten) und welche Art (…_iptv_type).
+
+  _tvIDs() {
+    const st = this._hass.states;
+    const status = Object.keys(st).find((e) => /^sensor\..*_iptv_status$/.test(e)) || "";
+    const prefix = status ? status.slice("sensor.".length, -"_iptv_status".length) : "";
+    const services = Object.keys(this._hass.services?.esphome || {});
+    return {
+      status, server: prefix ? `sensor.${prefix}_iptv_server` : "", type: prefix ? `sensor.${prefix}_iptv_type` : "",
+      video: prefix ? `switch.${prefix}_video` : "",
+      service: services.find((s) => s.endsWith("_iptv_account")) || "",
+      playlist: services.find((s) => s.endsWith("_iptv_playlist")) || "",
+    };
+  }
+
+  _tvStatusInfo() {
+    const ids = this._tvIDs();
+    if (!ids.service) return ["bad", "Die Echo Show bietet keinen TV-Zugang an (Hilal OS ab Version 1.13 nötig)."];
+    const v = ids.status ? this._hass.states[ids.status]?.state : "";
+    if (this._tvSent && Date.now() - this._tvSent < 4000 && v !== "checking") return ["wait", "Wird gesendet …"];
+    return {
+      not_set: ["", "Noch nicht eingerichtet"],
+      checking: ["wait", "Wird geprüft …"],
+      ready: ["ok", this._hass.states[this._tvIDs().type]?.state === "m3u" ? "Liste geladen, die Sender sind auf der Echo Show" : "Verbunden, die Sender sind auf der Echo Show"],
+      refused: ["bad", "Abgelehnt: Benutzername oder Passwort stimmt nicht"],
+      unreachable: ["bad", "Server nicht erreichbar: Adresse oder Anschluss prüfen"],
+      unreadable: ["bad", "Der Server antwortet, aber nicht wie ein Xtream-Codes-Server"],
+    }[v] || ["", "Echo Show nicht erreichbar"];
+  }
+
+  _tvStatusUpdate() {
+    const el = this._el("tvstatus");
+    if (el) {
+      const [cls, text] = this._tvStatusInfo();
+      el.className = "pill " + cls;
+      el.querySelector(".t").textContent = text;
+    }
+    const ids = this._tvIDs();
+    const warn = this._el("tvvideo");
+    if (warn) warn.hidden = !ids.video || this._hass.states[ids.video]?.state !== "off";
+  }
+
+  _openTV() {
+    this._tvOpen = true;
+    const ids = this._tvIDs();
+    const known = (id) => { const v = id ? this._hass.states[id]?.state || "" : ""; return v === "unknown" || v === "unavailable" ? "" : v; };
+    const server = known(ids.server);
+    this._tvKind = known(ids.type) === "m3u" ? "m3u" : "xtream";
+    const back = document.createElement("div");
+    back.className = "dlg-back";
+    back.id = "tvdlg";
+    back.innerHTML = `<div class="dlg" role="dialog" aria-modal="true">
+      <h2><ha-icon icon="mdi:television-play"></ha-icon>TV-Zugang</h2>
+      <p class="lead">Dein IPTV-Zugang für den Reiter „TV“ auf der Echo Show. Die Daten gehen verschlüsselt an die Echo
+        Show und liegen nur dort; Echo Studio speichert sie nicht.</p>
+      <div class="seg" id="tvkind">
+        <button data-kind="xtream" class="${this._tvKind === "xtream" ? "on" : ""}">Xtream Codes</button>
+        <button data-kind="m3u" class="${this._tvKind === "m3u" ? "on" : ""}">M3U-Liste</button>
+      </div>
+      <div id="tvxtream" ${this._tvKind === "m3u" ? "hidden" : ""}>
+        <label>Server</label>
+        <input type="text" id="tvserver" placeholder="http://anbieter.example:8080" autocomplete="off" value="${this._esc(this._tvKind === "xtream" ? server : "")}">
+        <label>Benutzername</label>
+        <input type="text" id="tvuser" autocomplete="off" placeholder="${server && this._tvKind === "xtream" ? "Zum Ändern neu eingeben" : ""}">
+        <label>Passwort</label>
+        <div class="pw"><input type="password" id="tvpass" autocomplete="new-password" placeholder="${server && this._tvKind === "xtream" ? "Zum Ändern neu eingeben" : ""}">
+          <button id="tveye" title="Passwort zeigen"><ha-icon icon="mdi:eye"></ha-icon></button></div>
+      </div>
+      <div id="tvm3u" ${this._tvKind === "xtream" ? "hidden" : ""}>
+        <label>Link zur Senderliste (.m3u oder .m3u8)</label>
+        <input type="text" id="tvlist" autocomplete="off" placeholder="${server && this._tvKind === "m3u" ? `Eingetragen: ${this._esc(server)}/… (zum Ändern neu eingeben)` : "http://anbieter.example/get.php?…&type=m3u_plus"}">
+        <p class="note">Die Gruppen der Liste („group-title“) werden zu Kategorien. Filme und Serien bleiben draußen.</p>
+      </div>
+      <div class="pill" id="tvstatus"><span class="dot"></span><span class="t"></span></div>
+      <div class="warn" id="tvvideo" hidden><span>Der Schalter „Video“ der Echo Show ist aus: so spielt kein Sender.</span>
+        <button id="tvvideoon">Einschalten</button></div>
+      <div class="row2">
+        <button class="link" id="tvremove">Zugang entfernen</button>
+        <div class="right"><button id="tvclose">Schließen</button><button class="primary" id="tvsave">Speichern und prüfen</button></div>
+      </div>
+      <p class="note">Bitte nur mit einem legalen Abo nutzen. Sender in H.264 bis 720p laufen am besten; H.265 und Dolby-Ton spielt
+        die Echo Show nicht.</p>
+    </div>`;
+    this.shadowRoot.appendChild(back);
+    const $ = (id) => this._el(id);
+    const close = () => { this._tvOpen = false; back.remove(); };
+    back.addEventListener("click", (e) => { if (e.target === back) close(); });
+    $("tvclose").addEventListener("click", close);
+    $("tveye").addEventListener("click", () => {
+      const pw = $("tvpass");
+      pw.type = pw.type === "password" ? "text" : "password";
+      $("tveye").querySelector("ha-icon").setAttribute("icon", pw.type === "password" ? "mdi:eye" : "mdi:eye-off");
+    });
+    $("tvvideoon").addEventListener("click", () => {
+      const v = this._tvIDs().video;
+      if (v) this._hass.callService("switch", "turn_on", { entity_id: v });
+    });
+    back.querySelectorAll("#tvkind button").forEach((b) => b.addEventListener("click", () => {
+      this._tvKind = b.dataset.kind;
+      back.querySelectorAll("#tvkind button").forEach((x) => x.classList.toggle("on", x === b));
+      $("tvxtream").hidden = this._tvKind !== "xtream";
+      $("tvm3u").hidden = this._tvKind !== "m3u";
+      this._tvError("");
+    }));
+    $("tvsave").addEventListener("click", () => {
+      if (this._tvKind === "m3u") this._tvSendList($("tvlist").value.trim());
+      else this._tvSend($("tvserver").value.trim(), $("tvuser").value.trim(), $("tvpass").value);
+    });
+    $("tvremove").addEventListener("click", () => {
+      if (!confirm("Den TV-Zugang von der Echo Show entfernen?")) return;
+      const type = this._hass.states[this._tvIDs().type]?.state;
+      if (type === "m3u") this._tvSendList(""); else this._tvSend("", "", "");
+    });
+    this._tvStatusUpdate();
+    $(server ? "tvuser" : "tvserver").focus();
+  }
+
+  async _tvSend(server, username, password) {
+    const ids = this._tvIDs();
+    if (!ids.service) return;
+    if (username && (!server || !password)) {
+      this._tvError("Server, Benutzername und Passwort werden alle gebraucht.");
+      return;
+    }
+    try {
+      await this._hass.callService("esphome", ids.service, { server, username, password });
+      this._tvSent = Date.now();
+      const pw = this._el("tvpass");
+      if (pw) pw.value = ""; // nicht im Fenster stehen lassen
+      this._tvError("");
+    } catch (err) {
+      this._tvError("Senden fehlgeschlagen: " + (err.message || err));
+    }
+    this._tvStatusUpdate();
+    setTimeout(() => this._tvStatusUpdate(), 4100);
+  }
+
+  async _tvSendList(link) {
+    const ids = this._tvIDs();
+    if (!ids.playlist) {
+      this._tvError("Die Echo Show kennt noch keine M3U-Listen (Hilal OS ab Version 1.13).");
+      return;
+    }
+    if (link && !/^https?:\/\//i.test(link)) {
+      this._tvError("Der Link muss mit http:// oder https:// beginnen.");
+      return;
+    }
+    try {
+      await this._hass.callService("esphome", ids.playlist, { url: link });
+      this._tvSent = Date.now();
+      const el = this._el("tvlist");
+      if (el) el.value = "";
+      this._tvError("");
+    } catch (err) {
+      this._tvError("Senden fehlgeschlagen: " + (err.message || err));
+    }
+    this._tvStatusUpdate();
+    setTimeout(() => this._tvStatusUpdate(), 4100);
+  }
+
+  _tvError(text) {
+    const el = this._el("tvstatus");
+    if (!el) return;
+    if (text) {
+      el.className = "pill bad";
+      el.querySelector(".t").textContent = text;
+    } else {
+      this._tvStatusUpdate();
+    }
+  }
+
   // --- Ereignisse --------------------------------------------------------------------------------
 
   // Die Ereignisse des Gerüsts, einmal: an den Bereichen, nicht an jeder Zeile und jeder Karte, damit
@@ -744,6 +945,7 @@ class EchoStudioPanel extends HTMLElement {
   _wire() {
     const on = (id, ev, fn) => { const el = this._el(id); if (el) el.addEventListener(ev, fn); };
     on("save", "click", () => this._save());
+    on("tvbtn", "click", () => this._openTV());
     if (!this._loaded) return;
 
     let typing = null;
