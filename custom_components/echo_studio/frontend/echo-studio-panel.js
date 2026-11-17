@@ -768,7 +768,8 @@ class EchoStudioPanel extends HTMLElement {
   // Zwei Arten: Xtream Codes (Server, Benutzername, Passwort; Aktion esphome.<gerät>_iptv_account) oder
   // eine M3U-Liste (ein Link; Aktion …_iptv_playlist). Echo Studio speichert davon nichts; die Echo
   // Show prüft den Zugang und meldet, wie es steht (sensor.<gerät>_iptv_status), welcher Server es ist
-  // (…_iptv_server, ohne Zugangsdaten) und welche Art (…_iptv_type).
+  // (…_iptv_server, ohne Zugangsdaten) und welche Art (…_iptv_type). Zu einer M3U-Liste kann ein eigener
+  // Programmführer kommen (XMLTV-Link; Aktion …_iptv_guide); wie es um ihn steht, sagt …_iptv_guide.
 
   _tvIDs() {
     const st = this._hass.states;
@@ -777,9 +778,11 @@ class EchoStudioPanel extends HTMLElement {
     const services = Object.keys(this._hass.services?.esphome || {});
     return {
       status, server: prefix ? `sensor.${prefix}_iptv_server` : "", type: prefix ? `sensor.${prefix}_iptv_type` : "",
+      guideState: prefix ? `sensor.${prefix}_iptv_guide` : "",
       video: prefix ? `switch.${prefix}_video` : "",
       service: services.find((s) => s.endsWith("_iptv_account")) || "",
       playlist: services.find((s) => s.endsWith("_iptv_playlist")) || "",
+      guide: services.find((s) => s.endsWith("_iptv_guide")) || "",
     };
   }
 
@@ -808,6 +811,21 @@ class EchoStudioPanel extends HTMLElement {
     const ids = this._tvIDs();
     const warn = this._el("tvvideo");
     if (warn) warn.hidden = !ids.video || this._hass.states[ids.video]?.state !== "off";
+    const g = this._el("tvguidestate");
+    if (g) g.textContent = this._tvGuideText();
+  }
+
+  // Wie es um den Programmführer steht, aus „Host: 287 channels“, „Host: loading“, „Host: failed“.
+  _tvGuideText() {
+    const ids = this._tvIDs();
+    if (!ids.guide) return "Diese Echo Show kennt noch keinen eigenen Programmführer (Hilal OS ab Version 1.17).";
+    const v = ids.guideState ? this._hass.states[ids.guideState]?.state || "" : "";
+    if (!v || v === "unknown" || v === "unavailable") return "Kein Programmführer: die Liste nennt keinen. Trag oben einen ein.";
+    const m = v.match(/^(.*): (\d+) channels$/);
+    if (m) return `Programmführer von ${m[1]}: Programm für ${m[2]} Sender.` + (m[2] === "0" ? " Er passt nicht zu den Sendern der Liste." : "");
+    if (v.endsWith(": loading")) return `Programmführer von ${v.slice(0, -9)} wird geladen …`;
+    if (v.endsWith(": failed")) return `Der Programmführer von ${v.slice(0, -8)} ließ sich nicht laden.`;
+    return v;
   }
 
   _openTV() {
@@ -840,6 +858,9 @@ class EchoStudioPanel extends HTMLElement {
         <label>Link zur Senderliste (.m3u oder .m3u8)</label>
         <input type="text" id="tvlist" autocomplete="off" placeholder="${server && this._tvKind === "m3u" ? `Eingetragen: ${this._esc(server)}/… (zum Ändern neu eingeben)` : "http://anbieter.example/get.php?…&type=m3u_plus"}">
         <p class="note">Die Gruppen der Liste („group-title“) werden zu Kategorien. Filme und Serien bleiben draußen.</p>
+        <label>Programmführer (EPG), freiwillig</label>
+        <input type="text" id="tvguide" autocomplete="off" placeholder="https://…/guide.xml.gz (XMLTV)">
+        <p class="note"><span id="tvguidestate"></span> <button class="link" id="tvguideclear">Eigenen zurücksetzen</button></p>
       </div>
       <div class="pill" id="tvstatus"><span class="dot"></span><span class="t"></span></div>
       <div class="warn" id="tvvideo" hidden><span>Der Schalter „Video“ der Echo Show ist aus: so spielt kein Sender.</span>
@@ -873,9 +894,10 @@ class EchoStudioPanel extends HTMLElement {
       this._tvError("");
     }));
     $("tvsave").addEventListener("click", () => {
-      if (this._tvKind === "m3u") this._tvSendList($("tvlist").value.trim());
+      if (this._tvKind === "m3u") this._tvSaveM3U($("tvlist").value.trim(), $("tvguide").value.trim());
       else this._tvSend($("tvserver").value.trim(), $("tvuser").value.trim(), $("tvpass").value);
     });
+    $("tvguideclear").addEventListener("click", () => this._tvSendGuide(""));
     $("tvremove").addEventListener("click", () => {
       if (!confirm("Den TV-Zugang von der Echo Show entfernen?")) return;
       const type = this._hass.states[this._tvIDs().type]?.state;
@@ -909,11 +931,11 @@ class EchoStudioPanel extends HTMLElement {
     const ids = this._tvIDs();
     if (!ids.playlist) {
       this._tvError("Die Echo Show kennt noch keine M3U-Listen (Hilal OS ab Version 1.13).");
-      return;
+      return false;
     }
     if (link && !/^https?:\/\//i.test(link)) {
       this._tvError("Der Link muss mit http:// oder https:// beginnen.");
-      return;
+      return false;
     }
     try {
       await this._hass.callService("esphome", ids.playlist, { url: link });
@@ -923,9 +945,46 @@ class EchoStudioPanel extends HTMLElement {
       this._tvError("");
     } catch (err) {
       this._tvError("Senden fehlgeschlagen: " + (err.message || err));
+      return false;
     }
     this._tvStatusUpdate();
     setTimeout(() => this._tvStatusUpdate(), 4100);
+    return true;
+  }
+
+  // Liste und Programmführer: was eingetragen ist, die Liste zuerst (zu ihr gehört der Führer).
+  async _tvSaveM3U(link, guide) {
+    if (!link && !guide) {
+      this._tvError("Bitte einen Link zur Senderliste oder zum Programmführer eintragen.");
+      return;
+    }
+    if (link && !(await this._tvSendList(link))) return;
+    if (guide) await this._tvSendGuide(guide);
+  }
+
+  async _tvSendGuide(link) {
+    const ids = this._tvIDs();
+    if (!ids.guide) {
+      this._tvError("Die Echo Show kennt noch keinen eigenen Programmführer (Hilal OS ab Version 1.17).");
+      return false;
+    }
+    if (link && !/^https?:\/\//i.test(link)) {
+      this._tvError("Der Link zum Programmführer muss mit http:// oder https:// beginnen.");
+      return false;
+    }
+    try {
+      await this._hass.callService("esphome", ids.guide, { url: link });
+      this._tvSent = Date.now();
+      const el = this._el("tvguide");
+      if (el) el.value = "";
+      this._tvError("");
+    } catch (err) {
+      this._tvError("Senden fehlgeschlagen: " + (err.message || err));
+      return false;
+    }
+    this._tvStatusUpdate();
+    setTimeout(() => this._tvStatusUpdate(), 4100);
+    return true;
   }
 
   _tvError(text) {
