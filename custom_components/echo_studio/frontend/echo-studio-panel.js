@@ -153,6 +153,10 @@ input[type=search], input[type=text], input[type=password], select { width:100%;
 .dlg .src .acts { display:flex; gap:4px; flex:none; }
 .dlg .src .acts button { padding:6px 10px; }
 .dlg .src .acts ha-icon { --mdc-icon-size:18px; }
+.dlg .src .acts button.tog { background:none; color:var(--secondary-text-color); }
+.dlg .src .acts button.tog.on { color:${AMBER}; }
+.dlg .src .acts button.tog ha-icon { --mdc-icon-size:22px; }
+.dlg .src .err { font-size:12px; color:#e53935; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 `;
 
 class EchoStudioPanel extends HTMLElement {
@@ -791,7 +795,7 @@ class EchoStudioPanel extends HTMLElement {
     return {
       status, type: prefix ? `sensor.${prefix}_iptv_type` : "", guideState: prefix ? `sensor.${prefix}_iptv_guide` : "",
       video: prefix ? `switch.${prefix}_video` : "",
-      add: svc("_iptv_add"), edit: svc("_iptv_edit"), remove: svc("_iptv_remove"), select: svc("_iptv_select"),
+      add: svc("_iptv_add"), edit: svc("_iptv_edit"), remove: svc("_iptv_remove"), select: svc("_iptv_select"), show: svc("_iptv_show"),
       sources: svc("_iptv_sources"), account: svc("_iptv_account"),
     };
   }
@@ -837,6 +841,7 @@ class EchoStudioPanel extends HTMLElement {
     const v = ids.guideState ? this._hass.states[ids.guideState]?.state || "" : "";
     if (!v || v === "unknown" || v === "unavailable") return "";
     const m = v.match(/^(.*): (\d+) channels$/);
+    if (v.includes("; ")) return "Programmführer: " + v.split("; ").map((p) => p.replace(/: (\d+) channels$/, " ($1 Sender)").replace(/: loading$/, " (wird geladen)").replace(/: failed$/, " (nicht zu laden)")).join(", ");
     if (m) return `Programmführer der gezeigten Liste: ${m[1]}, Programm für ${m[2]} Sender.`;
     if (v.endsWith(": loading")) return `Programmführer von ${v.slice(0, -9)} wird geladen …`;
     if (v.endsWith(": failed")) return `Der Programmführer von ${v.slice(0, -8)} ließ sich nicht laden.`;
@@ -853,8 +858,8 @@ class EchoStudioPanel extends HTMLElement {
     back.innerHTML = `<div class="dlg" role="dialog" aria-modal="true">
       <h2><ha-icon icon="mdi:television-play"></ha-icon>TV-Listen</h2>
       <p class="lead">Deine IPTV-Listen für das Fernsehen auf der Echo Show: Xtream-Codes-Zugänge und M3U-Listen, so viele
-        du willst. Auf der Show wechselst du oben über den Namen der Liste. Die Daten gehen verschlüsselt an die Echo
-        Show und liegen nur dort.</p>
+        du willst. Mit „gezeigt“ siehst du mehrere zugleich (ihre Kategorien zusammen), mit „Nur diese“ eine allein. Die
+        Daten gehen verschlüsselt an die Echo Show und liegen nur dort.</p>
       <div class="srcs" id="tvsrcs"><div class="note">Listen werden gelesen …</div></div>
       <div class="pill" id="tvstatus"><span class="dot"></span><span class="t"></span></div>
       <p class="note" id="tvguidestate"></p>
@@ -950,6 +955,7 @@ class EchoStudioPanel extends HTMLElement {
       const src = (this._tvSources || []).find((x) => x.id === id);
       switch (b.dataset.act) {
         case "select": this._tvCall("select", { id }); break;
+        case "show": this._tvCall("show", { id, shown: !(src && (src.shown ?? src.active)) }); break;
         case "remove":
           if (confirm(`Die Liste „${src ? src.name : id}“ von der Echo Show entfernen?`)) this._tvCall("remove", { id });
           break;
@@ -999,15 +1005,23 @@ class EchoStudioPanel extends HTMLElement {
       box.innerHTML = `<div class="note">Noch keine Liste. Füge unten eine hinzu.</div>`;
       return;
     }
-    box.innerHTML = list.map((s) => `<div class="src ${s.active ? "on" : ""}">
+    const many = this._tvIDs().show && list.length > 1;
+    box.innerHTML = list.map((s) => {
+      const shown = s.shown ?? s.active;
+      const only = list.filter((x) => x.shown ?? x.active).length === 1 && shown;
+      return `<div class="src ${shown ? "on" : ""}">
         <ha-icon icon="${s.kind === "m3u" ? "mdi:playlist-play" : "mdi:server-network"}"></ha-icon>
-        <div class="txt"><div class="n">${this._esc(s.name)}${s.active ? ` <span class="badge">gezeigt</span>` : ""}</div>
-          <div class="h">${s.kind === "m3u" ? "M3U" : "Xtream Codes"} · ${this._esc(s.host)}${s.guide ? " · EPG " + this._esc(s.guide) : ""}</div></div>
+        <div class="txt"><div class="n">${this._esc(s.name)}${shown ? ` <span class="badge">gezeigt</span>` : ""}</div>
+          <div class="h">${s.kind === "m3u" ? "M3U" : "Xtream Codes"} · ${this._esc(s.host)}${s.guide ? " · EPG " + this._esc(s.guide) : ""}</div>
+          ${s.error && shown ? `<div class="err">${this._esc(s.error)}</div>` : ""}</div>
         <div class="acts">
-          ${s.active ? "" : `<button data-act="select" data-id="${this._esc(s.id)}" title="Auf der Echo Show zeigen">Zeigen</button>`}
+          ${many ? `<button data-act="show" data-id="${this._esc(s.id)}" class="tog ${shown ? "on" : ""}" title="${shown ? "Nicht mehr zeigen" : "Zusätzlich zeigen"}"
+            ${only ? "disabled" : ""}><ha-icon icon="${shown ? "mdi:checkbox-marked" : "mdi:checkbox-blank-outline"}"></ha-icon></button>` : ""}
+          ${only ? "" : `<button data-act="select" data-id="${this._esc(s.id)}" title="Nur diese Liste zeigen">${many ? "Nur diese" : "Zeigen"}</button>`}
           <button data-act="edit" data-id="${this._esc(s.id)}" title="Bearbeiten"><ha-icon icon="mdi:pencil"></ha-icon></button>
           <button data-act="remove" data-id="${this._esc(s.id)}" title="Entfernen"><ha-icon icon="mdi:delete-outline"></ha-icon></button>
-        </div></div>`).join("");
+        </div></div>`;
+    }).join("");
   }
 
   // Eine Liste hinzufügen; true, wenn sie ging.
