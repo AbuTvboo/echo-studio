@@ -46,7 +46,7 @@ from .layout import LayoutError, clean_layout, files_in
 
 _LOGGER = logging.getLogger(__name__)
 
-VERSION = "0.2.2"
+VERSION = "0.3.0"
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 
 
