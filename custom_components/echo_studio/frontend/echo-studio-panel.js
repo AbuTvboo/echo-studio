@@ -135,6 +135,7 @@ input[type=search], input[type=text], input[type=password], select { width:100%;
 .pill .dot { width:9px; height:9px; border-radius:50%; background:#8a8f98; }
 .pill.ok .dot { background:#43a047; } .pill.wait .dot { background:${AMBER}; } .pill.bad .dot { background:#e53935; }
 .dlg .seg { margin:4px 0 2px; }
+.dlg [hidden] { display:none !important; } /* sonst gewinnt display:flex über hidden */
 .dlg .row2 { display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; margin-top:20px; }
 .dlg .row2 .right { display:flex; gap:8px; }
 .dlg .note { font-size:12px; color:var(--secondary-text-color); margin-top:14px; line-height:1.4; }
