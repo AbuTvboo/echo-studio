@@ -47,7 +47,7 @@ const MENU_COLORS = { // Fläche, Akzent, gedämpfte Schrift, Ränder
 };
 
 const css = `
-:host { display:block; height:100%; background:var(--primary-background-color); color:var(--primary-text-color);
+:host { display:flex; flex-direction:column; height:100vh; height:100dvh; overflow:hidden; background:var(--primary-background-color); color:var(--primary-text-color);
   font-family:var(--paper-font-body1_-_font-family, Roboto, sans-serif); }
 * { box-sizing:border-box; }
 .top { display:flex; align-items:center; gap:12px; padding:10px 16px; background:var(--app-header-background-color, var(--primary-color));
@@ -61,10 +61,10 @@ button { border:0; border-radius:18px; padding:8px 16px; font:inherit; cursor:po
 button.primary { background:${AMBER}; color:${INK}; font-weight:500; }
 button:disabled { opacity:.45; cursor:default; }
 button.link { background:none; padding:4px 8px; color:var(--primary-color); }
-.main { display:grid; grid-template-columns:320px 1fr 340px; gap:16px; padding:16px; height:calc(100% - 56px); }
+.main { display:grid; grid-template-columns:320px 1fr 340px; gap:16px; padding:16px; flex:1; min-height:0; }
 .pane { background:var(--card-background-color); border-radius:12px; padding:12px; overflow:auto; min-height:0; }
 .pane h2 { font-size:15px; margin:4px 4px 10px; font-weight:500; }
-@media (max-width:1100px) { .main { grid-template-columns:1fr; height:auto; } .pane { max-height:none; } }
+@media (max-width:1100px) { :host { height:auto; overflow:visible; } .main { grid-template-columns:1fr; } .pane { max-height:none; } }
 input[type=search], input[type=text], input[type=password], select { width:100%; padding:8px 10px; border-radius:8px; font:inherit;
   border:1px solid var(--divider-color); background:var(--primary-background-color); color:inherit; }
 .filters { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0; }
@@ -141,25 +141,28 @@ input[type=search], input[type=text], input[type=password], select { width:100%;
 /* Das Menü: seine Vorschau im Format der Echo Show (Vollbild, Reiterleiste, Kacheln) */
 .mparts { flex-wrap:wrap; margin:0 0 12px; }
 .mscreen { --u:0.10417cqw; aspect-ratio:16/10; overflow:auto; background:var(--mg); color:#f1f4f7;
-  padding:calc(var(--u)*24) calc(var(--u)*30); font-family:var(--paper-font-body1_-_font-family, Roboto, sans-serif); }
-.mtabs { display:flex; align-items:center; gap:calc(var(--u)*6); background:color-mix(in srgb, var(--mg) 80%, #000);
-  border:1px solid var(--mr); border-radius:calc(var(--u)*30); padding:calc(var(--u)*5); margin-bottom:calc(var(--u)*24); overflow:hidden; }
-.mtabs span { flex:1; text-align:center; font-size:calc(var(--u)*25); padding:calc(var(--u)*8) calc(var(--u)*10); border-radius:calc(var(--u)*24);
+  padding:calc(var(--u)*18) calc(var(--u)*22); font-family:var(--paper-font-body1_-_font-family, Roboto, sans-serif); }
+.mtop { display:flex; align-items:center; gap:calc(var(--u)*18); padding-bottom:calc(var(--u)*15);
+  border-bottom:1px solid color-mix(in srgb, var(--mr) 60%, transparent); margin-bottom:calc(var(--u)*17); }
+.mtabs { flex:1; min-width:0; height:calc(var(--u)*46); display:flex; align-items:center; gap:calc(var(--u)*2); background:color-mix(in srgb, var(--mg) 80%, #000);
+  border:1px solid var(--mr); border-radius:calc(var(--u)*23); padding:calc(var(--u)*3); overflow:hidden; }
+.mtabs span { flex:1; min-width:0; text-align:center; font-size:calc(var(--u)*24); line-height:calc(var(--u)*38); padding:0 calc(var(--u)*8); border-radius:calc(var(--u)*20);
   color:color-mix(in srgb, var(--md) 70%, #fff); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .mtabs span.on { background:var(--ma); color:${INK}; font-weight:700; }
-.mtabs .x { flex:none; width:calc(var(--u)*52); height:calc(var(--u)*52); border-radius:50%; background:color-mix(in srgb, var(--mg) 70%, #fff);
-  display:flex; align-items:center; justify-content:center; font-size:calc(var(--u)*30); color:#fff; padding:0; }
+.mtop .x { flex:none; width:calc(var(--u)*45); height:calc(var(--u)*45); border-radius:50%; background:color-mix(in srgb, var(--mg) 70%, #fff);
+  display:flex; align-items:center; justify-content:center; font-size:calc(var(--u)*30); color:#fff; padding:0; box-shadow:0 calc(var(--u)*2) calc(var(--u)*6) rgba(0,0,0,.35); }
 .mgrid { display:grid; gap:calc(var(--u)*14); }
-.mhead { grid-column:1/-1; height:calc(var(--u)*46); display:flex; align-items:flex-end; margin-top:calc(var(--u)*6); color:var(--ma); font-size:calc(var(--u)*32); cursor:pointer;
+.mhead { grid-column:1/-1; height:calc(var(--u)*36); line-height:1; display:flex; align-items:flex-end; margin-top:calc(var(--u)*6); color:var(--ma); font-size:calc(var(--u)*29); cursor:pointer;
   border-radius:8px; padding:0 calc(var(--u)*4); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mhead:first-child { margin-top:0; }
 .mhead.sel { outline:2px solid #fff; }
 .mtile { position:relative; height:calc(var(--u)*124); border-radius:calc(var(--u)*22); padding:calc(var(--u)*16); cursor:grab; color:var(--fg);
   background:linear-gradient(180deg, color-mix(in srgb, var(--fill) 92%, #fff), color-mix(in srgb, var(--fill) 92%, #000));
   box-shadow:0 calc(var(--u)*3) calc(var(--u)*10) rgba(0,0,0,.35); }
 .mtile ha-icon { --mdc-icon-size:calc(var(--u)*36); color:var(--fg); opacity:.85; pointer-events:none; }
-.mtile .val { position:absolute; right:calc(var(--u)*16); top:calc(var(--u)*20); font-size:calc(var(--u)*22); opacity:.8; pointer-events:none; }
-.mtile .name { position:absolute; left:calc(var(--u)*16); right:calc(var(--u)*16); bottom:calc(var(--u)*14); font-size:calc(var(--u)*27);
-  line-height:1.12; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; pointer-events:none; }
+.mtile .val { position:absolute; right:calc(var(--u)*16); top:calc(var(--u)*17); font-size:calc(var(--u)*21); opacity:.8; pointer-events:none; }
+.mtile .name { position:absolute; left:calc(var(--u)*16); right:calc(var(--u)*16); bottom:calc(var(--u)*11); font-size:calc(var(--u)*25);
+  line-height:1.2; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; pointer-events:none; }
 .mtile.sel { outline:3px solid #fff; outline-offset:2px; }
 .mtile.drop, .mhead.drop { box-shadow:calc(var(--u)*-6) 0 0 0 #fff; }
 .mtile.dragging { opacity:.4; }
@@ -1322,7 +1325,7 @@ class EchoStudioPanel extends HTMLElement {
     const showing = this._part === "scenes" ? "scenes" : "light";
     const tabName = (t) => t.name || MENU_TABS.find(([k]) => k === t.id)?.[1] || t.id;
     const strip = tabs.slice(0, 7).map((t) => `<span class="${t.id === showing ? "on" : ""}">${this._esc(tabName(t))}</span>`).join("");
-    const cols = look.columns || 5;
+    const cols = look.columns || Math.min(Math.max(Math.floor((916 + 14) / (200 + 14)), 2), 6); // wie drawer_ottoman_tiles.go: 4
     const list = this._items;
     let body = "";
     list.forEach((it, idx) => {
@@ -1336,7 +1339,7 @@ class EchoStudioPanel extends HTMLElement {
         : "Licht zeigt die Geräte mit dem Label „echo“."}</div>`;
     }
     return `<div style="--mg:${ground};--ma:${accent};--md:${soft};--mr:${rules};display:contents">
-      <div class="mtabs">${strip}<span class="x">×</span></div>
+      <div class="mtop"><div class="mtabs">${strip}</div><span class="x">×</span></div>
       <div class="mgrid" style="grid-template-columns:repeat(${cols},1fr)">${body}</div></div>`;
   }
 

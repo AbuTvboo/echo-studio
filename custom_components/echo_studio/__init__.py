@@ -50,7 +50,7 @@ from .menu import MenuError, clean_menu
 
 _LOGGER = logging.getLogger(__name__)
 
-VERSION = "0.4.1"
+VERSION = "0.4.2"
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 
 
