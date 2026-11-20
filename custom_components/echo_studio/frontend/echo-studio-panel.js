@@ -281,6 +281,7 @@ class EchoStudioPanel extends HTMLElement {
         this._menu = { tabs: (m.tabs || []).map((t) => ({ ...t })), light: (m.light || []).map((i) => ({ ...i })),
           scenes: (m.scenes || []).map((i) => ({ ...i })), look: { theme: m.look?.theme || "", columns: m.look?.columns || 0 } };
         this._menuOK = true;
+        this._menuSuggest();
       } catch (_) { this._menuOK = false; } // ein Echo Studio ohne Menü auf der anderen Seite: nur Karten
       this._loaded = true;
     } catch (err) {
@@ -1202,6 +1203,23 @@ class EchoStudioPanel extends HTMLElement {
   // das Farbthema mit der Zahl der Kacheln nebeneinander. Die Listen nutzen dieselbe Vorschau mit
   // Ziehen und dieselben Eigenschaften wie die Karten: this._items ist dann die Liste des Reiters.
 
+  // Ist eine Liste des Menüs noch leer, steht darin, was die Echo Show heute zeigt: die Geräte mit dem
+  // Label, nach Namen sortiert wie dort. Ein Vorschlag: erst „Speichern“ macht ihn zur eigenen Liste.
+  _menuSuggest() {
+    this._suggested = {};
+    for (const part of ["light", "scenes"]) {
+      if (this._menu[part].some((i) => i.entity)) continue;
+      const items = this._registry
+        .filter((e) => this._hasLabel(e) && MENU_DOMAINS[part].includes(e.ei.split(".")[0]))
+        .map((e) => ({ entity: e.ei }))
+        .sort((a, b) => this._friendly(a.entity).toLowerCase().localeCompare(this._friendly(b.entity).toLowerCase()));
+      if (items.length) {
+        this._menu[part] = items;
+        this._suggested[part] = true;
+      }
+    }
+  }
+
   _setMode(mode) {
     if (mode === "menu" && !this._menu) return;
     this._mode = mode;
@@ -1224,7 +1242,11 @@ class EchoStudioPanel extends HTMLElement {
       <div class="pane" id="devpane"><h2>Menü der Echo Show</h2>
         <div class="seg mparts" id="mparts">${parts.map(([k, t]) => `<button data-part="${k}" class="${this._part === k ? "on" : ""}">${t}</button>`).join("")}</div>
         <div id="mleft">${this._menuLeftHtml()}</div><div id="devlist"></div></div>
-      <div class="pane"><h2>Vorschau des Menüs</h2><div class="screen"><div class="mscreen" id="grid"></div></div>
+      <div class="pane"><h2>Vorschau des Menüs</h2>
+        ${this._isList() && this._suggested?.[this._part] && !this._menuDirty ? `<p class="hint" style="margin:0 4px 10px">Das zeigt die Echo Show
+          gerade (alle Geräte mit dem Label „echo“). Sortiere, ergänze Überschriften oder Farben und tippe auf „Speichern“, dann
+          gilt es als eigene Liste.</p>` : ""}
+        <div class="screen"><div class="mscreen" id="grid"></div></div>
         <div class="actions">${this._isList() ? `<button id="addheading">+ Überschrift</button>` : ""}
         <span class="hint">${this._isList()
           ? "Kacheln ziehen zum Sortieren, antippen zum Gestalten. Ist die Liste leer, zeigt die Echo Show wie bisher alle Geräte mit dem Label „echo“."
