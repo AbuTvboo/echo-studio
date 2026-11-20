@@ -15,8 +15,12 @@ STATIC_URL = "/echo_studio_static"
 # Ereignis nach dem Speichern: die Echo Show lädt dann neu
 EVENT_UPDATED = "echo_studio_updated"
 
-# Gespeicherte Gestaltung
+# Nach dem Speichern des Menüs (menu.py): die Echo Show liest es dann neu
+EVENT_MENU_UPDATED = "echo_studio_menu_updated"
+
+# Gespeicherte Gestaltung, und das Menü
 STORAGE_KEY = "echo_studio.layout"
+MENU_STORAGE_KEY = "echo_studio.menu"
 STORAGE_VERSION = 1
 
 # Eigene Bilder und Icons: in <config>/echo_studio, ausgeliefert nur mit Anmeldung

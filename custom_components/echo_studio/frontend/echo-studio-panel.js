@@ -29,6 +29,23 @@ const INK = "#1c1206";          // Schrift auf einer hellen Karte
 const MAX_ROWS = 200;           // so viele Geräte zeigt die Liste auf einmal
 const PREVIEW_DELAY = 400;      // Zustandsänderungen sammeln, bevor die Vorschau sie zeigt (ms)
 
+// Das Menü der Echo Show (Hilal OS, Bereich „Menü“): die Reiter, was Licht und Szenen zeigen dürfen,
+// die Farbthemen und ihre Farben (wie drawer_ottoman_menu.go und tv_ottoman_theme.go sie zeichnen:
+// Fläche, Akzent, gedämpfte Schrift, Ränder).
+const MENU_TABS = [["light", "Licht"], ["music", "Musik"], ["radio", "Radio"], ["tv", "TV"], ["football", "Fußball"],
+  ["cameras", "Kameras"], ["scenes", "Szenen"], ["announce", "Ansagen"], ["call", "Anrufen"], ["todo", "To-do"]];
+const MENU_DOMAINS = { light: ["light", "switch"], scenes: ["scene", "script"] };
+const MENU_THEMES = [["", "Automatisch (wie die Startseite)"], ["start", "Startseite"], ["show", "Design der Echo Show"],
+  ["blue", "Blau"], ["midnight", "Mitternacht"], ["emerald", "Smaragd"], ["aubergine", "Aubergine"], ["bordeaux", "Bordeaux"],
+  ["sunset", "Sonnenuntergang"], ["graphite", "Graphit"], ["ocean", "Ozean"]];
+const MENU_COLORS = { // Fläche, Akzent, gedämpfte Schrift, Ränder
+  start: ["#1b2d3f", "#F4A93C", "#a9b6c3", "#2b4a57"], show: ["#2e2723", "#E9A23B", "#8a7d6c", "#3a2c22"],
+  blue: ["#153aa8", "#ffd54a", "#a9bdee", "#2474e0"], midnight: ["#222a3b", "#ffd166", "#9ba8c0", "#35507a"],
+  emerald: ["#107a70", "#ffe082", "#a9ddd3", "#17a08f"], aubergine: ["#4f2690", "#ffd36b", "#cdb9ef", "#7340c8"],
+  bordeaux: ["#842243", "#ffe08a", "#ecbfca", "#b33a5c"], sunset: ["#99491a", "#fff1b0", "#f3cfae", "#cf6a22"],
+  graphite: ["#3a4049", "#ffd166", "#b6bdc7", "#566070"], ocean: ["#106a9c", "#ffe082", "#aad8f0", "#1b8fd0"],
+};
+
 const css = `
 :host { display:block; height:100%; background:var(--primary-background-color); color:var(--primary-text-color);
   font-family:var(--paper-font-body1_-_font-family, Roboto, sans-serif); }
@@ -117,6 +134,42 @@ input[type=search], input[type=text], input[type=password], select { width:100%;
 .error { background:#b71c1c; color:#fff; padding:8px 12px; border-radius:8px; margin:0 16px; }
 .error:empty { display:none; }
 .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+/* Oben: Karten | Menü */
+.top .modes { display:flex; gap:4px; background:rgba(0,0,0,.18); border-radius:20px; padding:3px; }
+.top .modes button { background:none; padding:6px 14px; }
+.top .modes button.on { background:rgba(255,255,255,.9); color:${INK}; }
+/* Das Menü: seine Vorschau im Format der Echo Show (Vollbild, Reiterleiste, Kacheln) */
+.mparts { flex-wrap:wrap; margin:0 0 12px; }
+.mscreen { --u:0.10417cqw; aspect-ratio:16/10; overflow:auto; background:var(--mg); color:#f1f4f7;
+  padding:calc(var(--u)*24) calc(var(--u)*30); font-family:var(--paper-font-body1_-_font-family, Roboto, sans-serif); }
+.mtabs { display:flex; align-items:center; gap:calc(var(--u)*6); background:color-mix(in srgb, var(--mg) 80%, #000);
+  border:1px solid var(--mr); border-radius:calc(var(--u)*30); padding:calc(var(--u)*5); margin-bottom:calc(var(--u)*24); overflow:hidden; }
+.mtabs span { flex:1; text-align:center; font-size:calc(var(--u)*25); padding:calc(var(--u)*8) calc(var(--u)*10); border-radius:calc(var(--u)*24);
+  color:color-mix(in srgb, var(--md) 70%, #fff); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mtabs span.on { background:var(--ma); color:${INK}; font-weight:700; }
+.mtabs .x { flex:none; width:calc(var(--u)*52); height:calc(var(--u)*52); border-radius:50%; background:color-mix(in srgb, var(--mg) 70%, #fff);
+  display:flex; align-items:center; justify-content:center; font-size:calc(var(--u)*30); color:#fff; padding:0; }
+.mgrid { display:grid; gap:calc(var(--u)*14); }
+.mhead { grid-column:1/-1; height:calc(var(--u)*46); display:flex; align-items:flex-end; margin-top:calc(var(--u)*6); color:var(--ma); font-size:calc(var(--u)*32); cursor:pointer;
+  border-radius:8px; padding:0 calc(var(--u)*4); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mhead.sel { outline:2px solid #fff; }
+.mtile { position:relative; height:calc(var(--u)*124); border-radius:calc(var(--u)*22); padding:calc(var(--u)*16); cursor:grab; color:var(--fg);
+  background:linear-gradient(180deg, color-mix(in srgb, var(--fill) 92%, #fff), color-mix(in srgb, var(--fill) 92%, #000));
+  box-shadow:0 calc(var(--u)*3) calc(var(--u)*10) rgba(0,0,0,.35); }
+.mtile ha-icon { --mdc-icon-size:calc(var(--u)*36); color:var(--fg); opacity:.85; pointer-events:none; }
+.mtile .val { position:absolute; right:calc(var(--u)*16); top:calc(var(--u)*20); font-size:calc(var(--u)*22); opacity:.8; pointer-events:none; }
+.mtile .name { position:absolute; left:calc(var(--u)*16); right:calc(var(--u)*16); bottom:calc(var(--u)*14); font-size:calc(var(--u)*27);
+  line-height:1.12; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; pointer-events:none; }
+.mtile.sel { outline:3px solid #fff; outline-offset:2px; }
+.mtile.drop, .mhead.drop { box-shadow:calc(var(--u)*-6) 0 0 0 #fff; }
+.mtile.dragging { opacity:.4; }
+.mtabrow { display:flex; align-items:center; gap:8px; padding:6px 4px; border-radius:8px; }
+.mtabrow:hover { background:var(--secondary-background-color); }
+.mtabrow input[type=checkbox] { width:18px; height:18px; accent-color:${AMBER}; flex:none; }
+.mtabrow .lbl { width:76px; flex:none; font-size:13px; }
+.mtabrow input[type=text] { flex:1; min-width:0; padding:6px 8px; }
+.mtabrow button { padding:4px 8px; flex:none; }
+.mswatch { display:inline-block; width:14px; height:14px; border-radius:4px; vertical-align:middle; margin-right:6px; border:1px solid rgba(255,255,255,.3); }
 /* Der TV-Zugang: ein Fenster über der Seite */
 .top button.tv { display:flex; align-items:center; gap:6px; }
 .top button.tv ha-icon { --mdc-icon-size:18px; }
@@ -181,6 +234,13 @@ class EchoStudioPanel extends HTMLElement {
     this._dropEl = null;
     this._stale = false;      // die Vorschau ist veraltet, zeichnen, sobald das Ziehen endet
     this._tilesEntity = undefined; // select.*_dashboard_tiles der Echo Show ("" = keine gefunden)
+    // Das Menü (Hilal OS): ob Echo Studio es kennt, die Einstellung, was gerade bearbeitet wird.
+    this._mode = "cards";     // "cards": die Karten; "menu": das Menü
+    this._cards = [];         // die Karten, auch während das Menü bearbeitet wird
+    this._menu = null;        // {tabs, light, scenes, look}
+    this._menuOK = false;
+    this._menuDirty = false;
+    this._part = "light";     // im Menü: "light", "scenes", "tabs", "look"
   }
 
   set hass(hass) {
@@ -215,6 +275,13 @@ class EchoStudioPanel extends HTMLElement {
       this._labelId = label ? label.label_id : null;
       this._items = (layout.items || []).map((i) => ({ ...i }));
       this._syncWithLabels();
+      this._cards = this._items;
+      try {
+        const m = await ws({ type: "echo_studio/menu/get" });
+        this._menu = { tabs: (m.tabs || []).map((t) => ({ ...t })), light: (m.light || []).map((i) => ({ ...i })),
+          scenes: (m.scenes || []).map((i) => ({ ...i })), look: { theme: m.look?.theme || "", columns: m.look?.columns || 0 } };
+        this._menuOK = true;
+      } catch (_) { this._menuOK = false; } // ein Echo Studio ohne Menü auf der anderen Seite: nur Karten
       this._loaded = true;
     } catch (err) {
       this._error = "Laden fehlgeschlagen: " + (err.message || err);
@@ -225,6 +292,7 @@ class EchoStudioPanel extends HTMLElement {
   // Die Karten folgen dem Label: was es trägt und noch keine Karte hat, kommt hinten dazu; eine
   // Karte ohne Label fällt weg.
   _syncWithLabels() {
+    if (this._mode === "menu") return;
     const labeled = new Set(this._registry.filter((e) => this._hasLabel(e)).map((e) => e.ei));
     const before = this._items.length;
     this._items = this._items.filter((i) => i.heading !== undefined || labeled.has(i.entity));
@@ -295,8 +363,17 @@ class EchoStudioPanel extends HTMLElement {
     return this._labelId;
   }
 
-  // Ein Haken in der Geräteliste: setzt oder nimmt das Label, sofort in Home Assistant.
+  // Ein Haken in der Geräteliste: setzt oder nimmt das Label, sofort in Home Assistant. Im Menü: nimmt
+  // das Gerät in die Liste des Reiters auf oder heraus (erst „Speichern“ bringt es auf die Echo Show).
   async _toggleDevice(entityId, on, box) {
+    if (this._mode === "menu") {
+      const at = this._items.findIndex((i) => i.entity === entityId);
+      if (on && at < 0) { this._items.push({ entity: entityId }); this._selected = entityId; }
+      if (!on && at >= 0) { this._items.splice(at, 1); if (this._selected === entityId) this._selected = null; }
+      this._renderCount();
+      this._edited();
+      return;
+    }
     const entry = this._registry.find((e) => e.ei === entityId);
     if (!entry) return;
     this._busy = true;
@@ -328,12 +405,21 @@ class EchoStudioPanel extends HTMLElement {
     this._busy = true;
     this._renderTop();
     try {
-      for (const it of this._items) {
-        if (this._foreign(it.icon) && !it.icon_mask) await this._makeMask(it).catch(() => {}); // ohne: das Standardsymbol
+      if (this._dirty) {
+        for (const it of this._cards) {
+          if (this._foreign(it.icon) && !it.icon_mask) await this._makeMask(it).catch(() => {}); // ohne: das Standardsymbol
+        }
+        const saved = await this._hass.callWS({ type: "echo_studio/layout/save", layout: { version: 1, items: this._cards } });
+        this._cards = saved.items.map((i) => ({ ...i }));
+        if (this._mode === "cards") this._items = this._cards;
+        this._dirty = false;
       }
-      const saved = await this._hass.callWS({ type: "echo_studio/layout/save", layout: { version: 1, items: this._items } });
-      this._items = saved.items.map((i) => ({ ...i }));
-      this._dirty = false;
+      if (this._menuDirty && this._menu) {
+        const saved = await this._hass.callWS({ type: "echo_studio/menu/save", menu: { version: 1, ...this._menu } });
+        this._menu = { tabs: saved.tabs, light: saved.light, scenes: saved.scenes, look: saved.look };
+        if (this._mode === "menu") this._useList();
+        this._menuDirty = false;
+      }
       this._error = "";
     } catch (err) {
       this._error = "Speichern fehlgeschlagen: " + (err.message || err);
@@ -363,7 +449,7 @@ class EchoStudioPanel extends HTMLElement {
 
   // Nach einer Änderung an der Gestaltung: Kopfzeile und Vorschau, und wenn gewünscht die Eigenschaften.
   _edited(props = true) {
-    this._dirty = true;
+    if (this._mode === "menu") this._menuDirty = true; else this._dirty = true;
     this._renderTop();
     this._renderPreview();
     if (props) this._renderProps();
@@ -431,6 +517,12 @@ class EchoStudioPanel extends HTMLElement {
   async _setIcon(icon) {
     const it = this._item(this._selected);
     if (!it) return;
+    if (this._mode === "menu" && this._foreign(icon)) { // das Menü der Echo Show zeichnet nur mdi-Symbole
+      this._error = "Im Menü gehen nur Symbole aus mdi (Material Design Icons).";
+      this._renderTop();
+      this._renderProps();
+      return;
+    }
     this._change({ icon, icon_mask: "" }, false);
     if (!this._foreign(icon)) return;
     try {
@@ -500,12 +592,14 @@ class EchoStudioPanel extends HTMLElement {
     r.innerHTML = `<style>${css}</style>
       <div class="top">
         <h1>Echo Studio</h1>
+        ${this._menuOK ? `<div class="modes" id="modes"><button data-mode="cards" class="${this._mode === "cards" ? "on" : ""}">Karten</button>
+          <button data-mode="menu" class="${this._mode === "menu" ? "on" : ""}">Menü</button></div>` : ""}
         <span class="state" id="state"></span>
         <button class="tv" id="tvbtn"><ha-icon icon="mdi:television-play"></ha-icon>TV-Listen</button>
         <button class="primary" id="save">Speichern</button>
       </div>
       <div class="error" id="error"></div>
-      ${this._loaded ? `<div class="main">
+      ${this._loaded && this._mode === "menu" ? this._menuMainHtml() : this._loaded ? `<div class="main">
         <div class="pane" id="devpane">${this._devicesHeadHtml()}<div id="devlist"></div></div>
         <div class="pane"><h2>Vorschau der Echo Show</h2><div class="screen"><div class="page" id="grid"></div></div>
           <div class="actions"><button id="addheading">+ Überschrift</button>
@@ -523,8 +617,9 @@ class EchoStudioPanel extends HTMLElement {
 
   _renderTop() {
     const state = this._el("state"), save = this._el("save"), error = this._el("error");
-    if (state) state.textContent = this._busy ? "Einen Moment …" : this._dirty ? "Nicht gespeichert" : this._loaded ? "Gespeichert" : "";
-    if (save) save.disabled = !this._dirty || this._busy;
+    const dirty = this._dirty || this._menuDirty;
+    if (state) state.textContent = this._busy ? "Einen Moment …" : dirty ? "Nicht gespeichert" : this._loaded ? "Gespeichert" : "";
+    if (save) save.disabled = !dirty || this._busy;
     if (error) error.textContent = this._error;
   }
 
@@ -545,12 +640,14 @@ class EchoStudioPanel extends HTMLElement {
 
   _renderCount() {
     const el = this._el("count");
+    if (el && this._mode === "menu") { el.textContent = `(${this._items.filter((i) => i.entity).length})`; return; }
     if (el) el.textContent = `(${this._registry.filter((e) => this._hasLabel(e)).length})`;
   }
 
   _renderDeviceList() {
     const list = this._el("devlist");
     if (!list) return;
+    if (this._mode === "menu") { list.innerHTML = this._menuDevicesHtml(); return; }
     const f = this._filter;
     const text = f.text.toLowerCase();
     const named = [];
@@ -654,6 +751,7 @@ class EchoStudioPanel extends HTMLElement {
   }
 
   _previewHtml() {
+    if (this._mode === "menu") return this._menuPreviewHtml();
     const secs = this._sections();
     if (!secs.length) return `<div class="empty">Noch keine Karten. Hake links die Geräte an, die auf der Echo Show erscheinen sollen.</div>`;
     const mode = this._echoTiles();
@@ -740,6 +838,7 @@ class EchoStudioPanel extends HTMLElement {
   // --- Eigenschaften
 
   _propsHtml() {
+    if (this._mode === "menu") return this._menuPropsHtml();
     const it = this._item(this._selected);
     if (!it) return `<h2>Karte</h2><p class="hint">Tippe in der Vorschau auf eine Karte oder Überschrift, um sie zu gestalten.</p>`;
     const idx = this._items.indexOf(it);
@@ -1095,11 +1194,274 @@ class EchoStudioPanel extends HTMLElement {
 
   // Die Ereignisse des Gerüsts, einmal: an den Bereichen, nicht an jeder Zeile und jeder Karte, damit
   // ein Neuzeichnen nichts neu verbinden muss.
+  // --- Das Menü (Hilal OS) ----------------------------------------------------------------------
+  //
+  // Der Bereich „Menü“ stellt das Seitenfenster der Echo Show ein (echo_studio/menu/*, menu.py):
+  // welche Reiter in welcher Reihenfolge und mit welchem Namen, welche Lampen/Schalter und Szenen/
+  // Skripte die Reiter Licht und Szenen zeigen (mit Überschriften, Namen, Symbolen und Farben), und
+  // das Farbthema mit der Zahl der Kacheln nebeneinander. Die Listen nutzen dieselbe Vorschau mit
+  // Ziehen und dieselben Eigenschaften wie die Karten: this._items ist dann die Liste des Reiters.
+
+  _setMode(mode) {
+    if (mode === "menu" && !this._menu) return;
+    this._mode = mode;
+    this._selected = null;
+    this._useList();
+    this._render();
+  }
+
+  // this._items auf die Liste, die gerade bearbeitet wird.
+  _useList() {
+    if (this._mode !== "menu") { this._items = this._cards; return; }
+    this._items = this._part === "scenes" ? this._menu.scenes : this._menu.light;
+  }
+
+  _isList() { return this._part === "light" || this._part === "scenes"; }
+
+  _menuMainHtml() {
+    const parts = [["light", "Licht"], ["scenes", "Szenen"], ["tabs", "Reiter"], ["look", "Aussehen"]];
+    return `<div class="main">
+      <div class="pane" id="devpane"><h2>Menü der Echo Show</h2>
+        <div class="seg mparts" id="mparts">${parts.map(([k, t]) => `<button data-part="${k}" class="${this._part === k ? "on" : ""}">${t}</button>`).join("")}</div>
+        <div id="mleft">${this._menuLeftHtml()}</div><div id="devlist"></div></div>
+      <div class="pane"><h2>Vorschau des Menüs</h2><div class="screen"><div class="mscreen" id="grid"></div></div>
+        <div class="actions">${this._isList() ? `<button id="addheading">+ Überschrift</button>` : ""}
+        <span class="hint">${this._isList()
+          ? "Kacheln ziehen zum Sortieren, antippen zum Gestalten. Ist die Liste leer, zeigt die Echo Show wie bisher alle Geräte mit dem Label „echo“."
+          : "So sieht das Menü auf der Echo Show aus. Nach „Speichern“ übernimmt sie es gleich."}</span></div></div>
+      <div class="pane props" id="props"></div>
+    </div>`;
+  }
+
+  // Die linke Spalte: für Licht und Szenen die Geräte zum Anhaken, für Reiter die Reiterliste, für
+  // Aussehen Farbthema und Spalten.
+  _menuLeftHtml() {
+    if (this._part === "tabs") {
+      return `<p class="hint">Haken: Reiter zeigen. Pfeile: Reihenfolge. Ein Name ersetzt den üblichen.</p>
+        ${this._menuTabsList().map((t, i, all) => `<div class="mtabrow" data-tab="${t.id}">
+          <input type="checkbox" data-act="show" ${t.show === false ? "" : "checked"}>
+          <span class="lbl">${this._esc(MENU_TABS.find(([k]) => k === t.id)?.[1] || t.id)}</span>
+          <input type="text" data-act="name" placeholder="Eigener Name" value="${this._esc(t.name || "")}" maxlength="20">
+          <button data-act="up" ${i === 0 ? "disabled" : ""} title="Nach vorne">▲</button>
+          <button data-act="down" ${i === all.length - 1 ? "disabled" : ""} title="Nach hinten">▼</button></div>`).join("")}
+        <p class="hint">Reiter, die die Echo Show gerade nicht anbietet (etwa To-do ohne Listen), erscheinen dort nicht.</p>`;
+    }
+    if (this._part === "look") {
+      const look = this._menu.look;
+      return `<label class="hint">Farbthema</label>
+        <select id="mtheme">${MENU_THEMES.map(([k, t]) => `<option value="${k}" ${look.theme === k ? "selected" : ""}>${t}</option>`).join("")}</select>
+        <label class="hint" style="display:block;margin-top:14px">Kacheln nebeneinander</label>
+        <div class="seg" id="mcols">${[[0, "Auto"], [2, "2"], [3, "3"], [4, "4"], [5, "5"], [6, "6"]].map(([v, t]) =>
+          `<button data-cols="${v}" class="${(look.columns || 0) === v ? "on" : ""}">${t}</button>`).join("")}</div>
+        <p class="hint" style="margin-top:14px">„Automatisch“ nimmt die Farben der Startseite, wenn sie dein Ruhebildschirm ist, sonst das Design der Echo Show.</p>`;
+    }
+    return `<input type="search" id="q" placeholder="Suchen …" value="${this._esc(this._filter.text)}">
+      <p class="hint">Haken: kommt in den Reiter ${this._part === "scenes" ? "Szenen" : "Licht"} <small id="count"></small>.</p>`;
+  }
+
+  // Die Reiter in der eingestellten Reihenfolge, dahinter die übrigen.
+  _menuTabsList() {
+    const tabs = this._menu.tabs.map((t) => ({ ...t }));
+    for (const [id] of MENU_TABS) if (!tabs.find((t) => t.id === id)) tabs.push({ id });
+    return tabs;
+  }
+
+  _menuDevicesHtml() {
+    if (!this._isList()) return "";
+    const allowed = MENU_DOMAINS[this._part];
+    const text = this._filter.text.toLowerCase();
+    const inList = new Set(this._items.filter((i) => i.entity).map((i) => i.entity));
+    const named = [];
+    for (const e of this._registry) {
+      const d = e.ei.split(".")[0];
+      if (!allowed.includes(d) || e.hb || e.ec != null) continue;
+      const name = this._friendly(e.ei);
+      if (text && !(name.toLowerCase().includes(text) || e.ei.includes(text))) continue;
+      named.push({ e, name, area: this._areaOf(e) || "Ohne Raum" });
+    }
+    named.sort((a, b) => (a.area === "Ohne Raum") - (b.area === "Ohne Raum") || a.area.localeCompare(b.area)
+      || inList.has(b.e.ei) - inList.has(a.e.ei) || a.name.localeCompare(b.name));
+    let html = "", group = null;
+    for (const { e, name, area } of named.slice(0, MAX_ROWS)) {
+      if (area !== group) { html += `<div class="group">${this._esc(area)}</div>`; group = area; }
+      html += `<label class="dev" data-entity="${e.ei}"><input type="checkbox" ${inList.has(e.ei) ? "checked" : ""}>
+        <ha-icon icon="${this._esc(this._defaultIcon(e.ei))}"></ha-icon>
+        <span class="n"><div>${this._esc(name)}</div><small>${e.ei}</small></span></label>`;
+    }
+    return html || `<p class="hint">Nichts gefunden.</p>`;
+  }
+
+  // Die Vorschau: die Reiterleiste wie auf der Echo Show, darunter die Kacheln des Reiters (für Reiter
+  // und Aussehen die von Licht), in den Farben des gewählten Themas.
+  _menuPreviewHtml() {
+    const look = this._menu.look;
+    const [ground, accent, soft, rules] = MENU_COLORS[look.theme || "start"] || MENU_COLORS.start;
+    const tabs = this._menuTabsList().filter((t) => t.show !== false);
+    const showing = this._part === "scenes" ? "scenes" : "light";
+    const tabName = (t) => t.name || MENU_TABS.find(([k]) => k === t.id)?.[1] || t.id;
+    const strip = tabs.slice(0, 7).map((t) => `<span class="${t.id === showing ? "on" : ""}">${this._esc(tabName(t))}</span>`).join("");
+    const cols = look.columns || 5;
+    const list = this._items;
+    let body = "";
+    list.forEach((it, idx) => {
+      if (it.heading !== undefined) {
+        body += `<div class="mhead ${this._selected === "#" + idx ? "sel" : ""}" draggable="true" data-idx="${idx}" data-sel="#${idx}">${this._esc(it.heading)}</div>`;
+      } else body += this._mTileHtml(it, idx, ground, accent);
+    });
+    if (!list.some((i) => i.entity)) {
+      body += `<div class="mhead" style="color:${soft};cursor:default;grid-column:1/-1">${this._isList()
+        ? "Noch nichts ausgewählt: die Echo Show zeigt wie bisher die Geräte mit dem Label „echo“. Hake links an, was hierher soll."
+        : "Licht zeigt die Geräte mit dem Label „echo“."}</div>`;
+    }
+    return `<div style="--mg:${ground};--ma:${accent};--md:${soft};--mr:${rules};display:contents">
+      <div class="mtabs">${strip}<span class="x">×</span></div>
+      <div class="mgrid" style="grid-template-columns:repeat(${cols},1fr)">${body}</div></div>`;
+  }
+
+  // Eine Kachel des Menüs, wie drawer_ottoman_tiles.go sie zeichnet.
+  _mTileHtml(it, idx, ground, accent) {
+    const on = this._isOn(it.entity) && !it.entity.startsWith("scene.") && !it.entity.startsWith("script.");
+    const tile = `color-mix(in srgb, ${ground} 85%, #fff)`;
+    const fill = on ? it.color_on || accent : it.color_off || "";
+    const light = fill && fill.startsWith("#") && this._luma(fill) > 150;
+    const fg = fill ? (light ? INK : "#fff") : "#f1f4f7";
+    const st = this._hass.states[it.entity];
+    let val = "";
+    if (it.entity.startsWith("light.") || it.entity.startsWith("switch.")) {
+      val = !st ? "–" : st.state === "on" ? (typeof st.attributes.brightness === "number" ? Math.round(st.attributes.brightness / 255 * 100) + " %" : "An") : "Aus";
+    }
+    return `<div class="mtile ${this._selected === it.entity ? "sel" : ""}" draggable="true" data-idx="${idx}" data-sel="${it.entity}"
+      style="--fill:${fill || tile};--fg:${fg}"><ha-icon icon="${this._esc(it.icon || this._defaultIcon(it.entity))}"></ha-icon>
+      ${val ? `<div class="val">${this._esc(val)}</div>` : ""}<div class="name">${this._esc(it.name || this._friendly(it.entity))}</div></div>`;
+  }
+
+  _menuPropsHtml() {
+    if (!this._isList()) {
+      return this._part === "tabs"
+        ? `<h2>Reiter</h2><p class="hint">Links stellst du ein, welche Reiter das Menü zeigt, in welcher Reihenfolge und unter welchem Namen. Auf der Show gedrückt halten und Ziehen ordnet sie dort nur bis zum nächsten Speichern hier.</p>`
+        : `<h2>Aussehen</h2><p class="hint">Das Farbthema gilt für das ganze Menü: Fläche, gewählter Reiter, eingeschaltete Kacheln. Eigene Farben einzelner Kacheln (unter Licht und Szenen) gehen vor.</p>`;
+    }
+    const it = this._item(this._selected);
+    if (!it) return `<h2>Kachel</h2><p class="hint">Tippe in der Vorschau auf eine Kachel oder Überschrift, um sie zu gestalten.</p>`;
+    const idx = this._items.indexOf(it);
+    const nav = `<div class="actions"><button id="up" ${idx === 0 ? "disabled" : ""}>Nach vorne</button>
+      <button id="down" ${idx === this._items.length - 1 ? "disabled" : ""}>Nach hinten</button></div>`;
+    if (it.heading !== undefined) {
+      return `<h2>Überschrift</h2><label>Text</label><input type="text" id="heading" value="${this._esc(it.heading)}">${nav}
+        <div class="actions"><button id="delheading">Überschrift entfernen</button></div>`;
+    }
+    const [, accent] = MENU_COLORS[this._menu.look.theme || "start"] || MENU_COLORS.start;
+    return `<h2>${this._esc(this._friendly(it.entity))}</h2><div class="hint">${it.entity}</div>
+      <label>Name</label><input type="text" id="name" maxlength="40" placeholder="${this._esc(this._friendly(it.entity))}" value="${this._esc(it.name || "")}">
+      <label>Symbol (aus mdi)</label><div id="iconpicker"></div>
+      <label>Farbe, wenn an</label><div class="row"><input type="color" id="color_on" value="${it.color_on || accent}">
+        ${it.color_on ? `<button class="link" id="reset_on">Zurücksetzen</button>` : `<span class="hint">Farbe des Themas</span>`}</div>
+      <label>Farbe, wenn aus</label><div class="row"><input type="color" id="color_off" value="${it.color_off || "#2b3a4c"}">
+        ${it.color_off ? `<button class="link" id="reset_off">Zurücksetzen</button>` : `<span class="hint">Farbe des Themas</span>`}</div>
+      ${nav}<div class="actions"><button id="mremove">Aus dem Menü nehmen</button></div>`;
+  }
+
+  _renderMenuLeft() {
+    const left = this._el("mleft");
+    if (left) left.innerHTML = this._menuLeftHtml();
+    this._renderDeviceList();
+    this._renderCount();
+  }
+
+  _wireMenu() {
+    const on = (id, ev, fn) => { const el = this._el(id); if (el) el.addEventListener(ev, fn); };
+    on("mparts", "click", (e) => {
+      const b = e.target.closest("button[data-part]");
+      if (!b || b.dataset.part === this._part) return;
+      this._part = b.dataset.part;
+      this._selected = null;
+      this._useList();
+      this._render();
+    });
+    const left = this._el("mleft");
+    if (!left) return;
+    let typing = null;
+    left.addEventListener("input", (e) => {
+      if (e.target.id === "q") {
+        this._filter.text = e.target.value;
+        clearTimeout(typing);
+        typing = setTimeout(() => this._renderDeviceList(), 150);
+      }
+    });
+    left.addEventListener("change", (e) => {
+      if (e.target.id === "mtheme") { this._menu.look.theme = e.target.value; this._edited(); return; }
+      const row = e.target.closest(".mtabrow");
+      if (!row) return;
+      const tabs = this._menuTabsList();
+      const t = tabs.find((x) => x.id === row.dataset.tab);
+      if (e.target.dataset.act === "show") { if (e.target.checked) delete t.show; else t.show = false; }
+      if (e.target.dataset.act === "name") { const v = e.target.value.trim(); if (v) t.name = v; else delete t.name; }
+      if (tabs.every((x) => x.show === false)) { delete tabs[0].show; this._renderMenuLeft(); }
+      this._menu.tabs = tabs;
+      this._edited(false);
+    });
+    left.addEventListener("click", (e) => {
+      const cols = e.target.closest("button[data-cols]");
+      if (cols) {
+        this._menu.look.columns = Number(cols.dataset.cols);
+        this._renderMenuLeft();
+        this._edited(false);
+        return;
+      }
+      const b = e.target.closest(".mtabrow button[data-act]");
+      if (!b) return;
+      const tabs = this._menuTabsList();
+      const i = tabs.findIndex((x) => x.id === b.closest(".mtabrow").dataset.tab);
+      const j = b.dataset.act === "up" ? i - 1 : i + 1;
+      if (j < 0 || j >= tabs.length) return;
+      [tabs[i], tabs[j]] = [tabs[j], tabs[i]];
+      this._menu.tabs = tabs;
+      this._renderMenuLeft();
+      this._edited(false);
+    });
+  }
+
+  // Die Felder der gewählten Kachel oder Überschrift des Menüs.
+  _wireMenuProps() {
+    const on = (id, ev, fn) => { const el = this._el(id); if (el) el.addEventListener(ev, fn); };
+    const it = this._item(this._selected);
+    if (!it) return;
+    const idx = this._items.indexOf(it);
+    const step = (to) => { if (this._move(idx, to)) { this._select(it); this._edited(); } };
+    on("up", "click", () => step(idx - 1));
+    on("down", "click", () => step(idx + 2));
+    if (it.heading !== undefined) {
+      on("heading", "change", (e) => { it.heading = e.target.value.trim() || "Überschrift"; this._edited(false); });
+      on("delheading", "click", () => { this._items.splice(idx, 1); this._selected = null; this._edited(); });
+      return;
+    }
+    on("name", "change", (e) => this._change({ name: e.target.value.trim() }, false));
+    on("color_on", "change", (e) => this._change({ color_on: e.target.value.toUpperCase() }));
+    on("color_off", "change", (e) => this._change({ color_off: e.target.value.toUpperCase() }));
+    on("reset_on", "click", () => this._change({ color_on: "" }));
+    on("reset_off", "click", () => this._change({ color_off: "" }));
+    on("mremove", "click", () => { this._items.splice(idx, 1); this._selected = null; this._renderDeviceList(); this._renderCount(); this._edited(); });
+    const holder = this._el("iconpicker");
+    if (holder) {
+      const picker = document.createElement("ha-icon-picker");
+      picker.hass = this._hass;
+      picker.value = it.icon || "";
+      picker.placeholder = this._defaultIcon(it.entity);
+      picker.addEventListener("value-changed", (e) => this._setIcon(e.detail.value || ""));
+      holder.appendChild(picker);
+    }
+  }
+
   _wire() {
     const on = (id, ev, fn) => { const el = this._el(id); if (el) el.addEventListener(ev, fn); };
     on("save", "click", () => this._save());
     on("tvbtn", "click", () => this._openTV());
+    on("modes", "click", (e) => {
+      const b = e.target.closest("button[data-mode]");
+      if (b && b.dataset.mode !== this._mode) this._setMode(b.dataset.mode);
+    });
     if (!this._loaded) return;
+    if (this._mode === "menu") this._wireMenu();
 
     let typing = null;
     on("q", "input", (e) => {
@@ -1115,6 +1477,7 @@ class EchoStudioPanel extends HTMLElement {
       if (row && e.target.type === "checkbox") this._toggleDevice(row.dataset.entity, e.target.checked, e.target);
     });
     on("addheading", "click", () => {
+      if (this._mode === "menu" && !this._isList()) return;
       this._items.unshift({ heading: "Neue Überschrift" });
       this._selected = "#0";
       this._edited();
@@ -1174,6 +1537,7 @@ class EchoStudioPanel extends HTMLElement {
 
   // Die Felder der gewählten Karte; sie werden mit ihr neu gezeichnet.
   _wireProps() {
+    if (this._mode === "menu") { this._wireMenuProps(); return; }
     const r = this.shadowRoot;
     const on = (id, ev, fn) => { const el = this._el(id); if (el) el.addEventListener(ev, fn); };
     const it = this._item(this._selected);

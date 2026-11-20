@@ -5,7 +5,8 @@ Websocket-API an und hängt die Oberfläche als Seite in die Seitenleiste. Welch
 Show kommen, steht im Label „echo“; das setzt die Oberfläche direkt in Home Assistant.
 
 Die Echo Show (TECHO5, Dashboard „Geräte mit Label echo“) liest die Gestaltung mit
-echo_studio/layout/get und die Bilder über FILES_URL, beides mit ihrem eigenen Zugang.
+echo_studio/layout/get und die Bilder über FILES_URL, beides mit ihrem eigenen Zugang. Hilal OS liest
+dazu das Menü (menu.py) mit echo_studio/menu/get und hört auf EVENT_MENU_UPDATED.
 """
 
 from __future__ import annotations
@@ -28,12 +29,14 @@ from homeassistant.helpers.storage import Store
 
 from .const import (
     DOMAIN,
+    EVENT_MENU_UPDATED,
     EVENT_UPDATED,
     FILES_DIR,
     FILES_URL,
     IMAGE_TYPES,
     LABEL,
     MAX_IMAGE_BYTES,
+    MENU_STORAGE_KEY,
     PANEL_ELEMENT,
     PANEL_ICON,
     PANEL_TITLE,
@@ -43,10 +46,11 @@ from .const import (
     STORAGE_VERSION,
 )
 from .layout import LayoutError, clean_layout, files_in
+from .menu import MenuError, clean_menu
 
 _LOGGER = logging.getLogger(__name__)
 
-VERSION = "0.3.1"
+VERSION = "0.4.0"
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 
 
@@ -56,6 +60,8 @@ class StudioData:
     def __init__(self, hass: HomeAssistant) -> None:
         self.store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self.layout: dict[str, Any] = {"version": 1, "items": []}
+        self.menu_store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, MENU_STORAGE_KEY)
+        self.menu: dict[str, Any] = clean_menu({})
         self.files = Path(hass.config.path(FILES_DIR))
 
 
@@ -67,12 +73,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             data.layout = clean_layout(stored)
         except LayoutError as err:
             _LOGGER.warning("Gespeicherte Gestaltung verworfen: %s", err)
+    stored_menu = await data.menu_store.async_load()
+    if stored_menu:
+        try:
+            data.menu = clean_menu(stored_menu)
+        except MenuError as err:
+            _LOGGER.warning("Gespeichertes Menü verworfen: %s", err)
     await hass.async_add_executor_job(lambda: data.files.mkdir(exist_ok=True))
     hass.data[DOMAIN] = data
 
     if not hass.data.get(f"{DOMAIN}_registered"):
         # Websocket-Befehle, Dateien und statische Pfade lassen sich nicht abmelden: einmal je Start.
-        for handler in (ws_layout_get, ws_layout_save, ws_image_upload, ws_info):
+        for handler in (ws_layout_get, ws_layout_save, ws_menu_get, ws_menu_save, ws_image_upload, ws_info):
             websocket_api.async_register_command(hass, handler)
         hass.http.register_view(StudioFileView())
         await hass.http.async_register_static_paths(
@@ -146,6 +158,39 @@ async def ws_layout_save(hass: HomeAssistant, connection: websocket_api.ActiveCo
     if unused:
         await hass.async_add_executor_job(_remove_files, data.files, unused)
     connection.send_result(msg["id"], layout)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "echo_studio/menu/get"})
+@callback
+def ws_menu_get(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Das Menü der Echo Show, für die Oberfläche und für Hilal OS."""
+    data = _data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_loaded", "Echo Studio ist nicht eingerichtet")
+        return
+    connection.send_result(msg["id"], data.menu)
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "echo_studio/menu/save", vol.Required("menu"): dict}
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_menu_save(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Speichert das Menü; die Echo Show liest es gleich neu."""
+    data = _data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_loaded", "Echo Studio ist nicht eingerichtet")
+        return
+    try:
+        menu = clean_menu(msg["menu"])
+    except MenuError as err:
+        connection.send_error(msg["id"], "invalid_menu", str(err))
+        return
+    data.menu = menu
+    await data.menu_store.async_save(menu)
+    hass.bus.async_fire(EVENT_MENU_UPDATED, {"tabs": len(menu["tabs"])})
+    connection.send_result(msg["id"], menu)
 
 
 def _remove_files(folder: Path, names: set[str]) -> None:
