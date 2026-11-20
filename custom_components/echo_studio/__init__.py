@@ -46,11 +46,11 @@ from .const import (
     STORAGE_VERSION,
 )
 from .layout import LayoutError, clean_layout, files_in
-from .menu import MenuError, clean_menu
+from .menu import MenuError, clean_menu, radio_favorite
 
 _LOGGER = logging.getLogger(__name__)
 
-VERSION = "0.4.3"
+VERSION = "0.5.0"
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 
 
@@ -84,7 +84,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if not hass.data.get(f"{DOMAIN}_registered"):
         # Websocket-Befehle, Dateien und statische Pfade lassen sich nicht abmelden: einmal je Start.
-        for handler in (ws_layout_get, ws_layout_save, ws_menu_get, ws_menu_save, ws_image_upload, ws_info):
+        for handler in (ws_layout_get, ws_layout_save, ws_menu_get, ws_menu_save, ws_radio_favorite, ws_image_upload, ws_info):
             websocket_api.async_register_command(hass, handler)
         hass.http.register_view(StudioFileView())
         await hass.http.async_register_static_paths(
@@ -190,6 +190,28 @@ async def ws_menu_save(hass: HomeAssistant, connection: websocket_api.ActiveConn
     data.menu = menu
     await data.menu_store.async_save(menu)
     hass.bus.async_fire(EVENT_MENU_UPDATED, {"tabs": len(menu["tabs"])})
+    connection.send_result(msg["id"], menu)
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "echo_studio/radio/favorite", vol.Required("station"): dict, vol.Required("add"): bool}
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_radio_favorite(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Ein Herz auf der Echo Show: der Sender kommt in die Favoriten des Radios oder heraus."""
+    data = _data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_loaded", "Echo Studio ist nicht eingerichtet")
+        return
+    try:
+        menu = clean_menu(radio_favorite(data.menu, msg["station"], msg["add"]))
+    except MenuError as err:
+        connection.send_error(msg["id"], "invalid_station", str(err))
+        return
+    data.menu = menu
+    await data.menu_store.async_save(menu)
+    hass.bus.async_fire(EVENT_MENU_UPDATED, {"tabs": len(menu["tabs"]), "radio": True})
     connection.send_result(msg["id"], menu)
 
 

@@ -13,7 +13,8 @@ _spec.loader.exec_module(menu)
 
 def test_empty_is_the_default():
     got = menu.clean_menu({})
-    assert got == {"version": 1, "tabs": [], "light": [], "scenes": [], "look": {"theme": "", "columns": 0}}
+    assert got == {"version": 1, "tabs": [], "light": [], "scenes": [], "look": {"theme": "", "columns": 0},
+                   "radio": {"favorites": [], "country": "", "genres": None, "start": "", "sort": "popular", "hide": []}}
 
 
 def test_keeps_tabs_items_and_look():
@@ -51,3 +52,42 @@ def test_one_tab_always_stays():
 def test_refuses_what_the_show_cannot_draw(bad):
     with pytest.raises(menu.MenuError):
         menu.clean_menu(bad)
+
+
+def test_radio_keeps_favorites_genres_and_choices():
+    got = menu.clean_menu({"radio": {
+        "favorites": [{"name": " 1LIVE ", "url": "https://wdr/1live", "logo": "https://wdr/logo.png", "extra": 1},
+                      {"name": "1 Live", "url": "https://other"}, {"name": "SWR3", "url": "http://swr3", "logo": "data:x"}],
+        "country": "de", "genres": [{"tag": "Schlager"}, {"tag": "news", "name": "Infos"}, {"tag": "schlager"}],
+        "start": "fav", "sort": "az", "hide": ["search", "near"]}})["radio"]
+    assert got["favorites"] == [{"name": "1LIVE", "url": "https://wdr/1live", "logo": "https://wdr/logo.png"},
+                                {"name": "SWR3", "url": "http://swr3"}]
+    assert got["country"] == "DE"
+    assert got["genres"] == [{"tag": "schlager"}, {"tag": "news", "name": "Infos"}]
+    assert (got["start"], got["sort"], got["hide"]) == ("fav", "az", ["near", "search"])
+
+
+@pytest.mark.parametrize("radio", [
+    {"favorites": [{"name": "x", "url": "ftp://x"}]},
+    {"favorites": [{"name": "", "url": "https://x"}]},
+    {"country": "DEU"},
+    {"genres": [{"tag": "<b>"}]},
+    {"start": "tv"},
+    {"sort": "random"},
+    {"hide": ["fav"]},
+    {"favorites": [{"name": f"S{i}", "url": f"https://s/{i}"} for i in range(61)]},
+])
+def test_radio_rejects(radio):
+    with pytest.raises(menu.MenuError):
+        menu.clean_menu({"radio": radio})
+
+
+def test_radio_favorite_adds_once_and_removes():
+    m = menu.clean_menu({"radio": {"favorites": [{"name": "SWR3", "url": "https://swr3"}]}})
+    m = menu.radio_favorite(m, {"name": "WDR 2", "url": "https://wdr2"}, True)
+    m = menu.radio_favorite(m, {"name": "wdr 2", "url": "https://elsewhere"}, True)
+    assert [f["name"] for f in m["radio"]["favorites"]] == ["SWR3", "wdr 2"]
+    m = menu.radio_favorite(m, {"name": "SWR 3", "url": "https://swr3"}, False)
+    assert [f["name"] for f in m["radio"]["favorites"]] == ["wdr 2"]
+    with pytest.raises(menu.MenuError):
+        menu.radio_favorite(m, {"name": "x", "url": "nope"}, True)

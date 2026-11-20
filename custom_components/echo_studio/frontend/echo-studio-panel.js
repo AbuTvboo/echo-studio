@@ -38,6 +38,21 @@ const MENU_DOMAINS = { light: ["light", "switch"], scenes: ["scene", "script"] }
 const MENU_THEMES = [["", "Automatisch (wie die Startseite)"], ["start", "Startseite"], ["show", "Design der Echo Show"],
   ["blue", "Blau"], ["midnight", "Mitternacht"], ["emerald", "Smaragd"], ["aubergine", "Aubergine"], ["bordeaux", "Bordeaux"],
   ["sunset", "Sonnenuntergang"], ["graphite", "Graphit"], ["ocean", "Ozean"]];
+// Das Radio der Echo Show (Hilal OS, screen_ottoman_radio.go): Länder, Genres, Radio Browser.
+const RADIO_COUNTRIES = [["", "Wie die Echo Show (ihr Ort)"], ["DE", "Deutschland"], ["AT", "Österreich"], ["CH", "Schweiz"],
+  ["TR", "Türkei"], ["NL", "Niederlande"], ["BE", "Belgien"], ["FR", "Frankreich"], ["IT", "Italien"], ["ES", "Spanien"],
+  ["PL", "Polen"], ["GB", "Großbritannien"], ["US", "USA"], ["GR", "Griechenland"], ["BA", "Bosnien"], ["HR", "Kroatien"],
+  ["RS", "Serbien"], ["RU", "Russland"], ["UA", "Ukraine"], ["MA", "Marokko"], ["EG", "Ägypten"], ["SA", "Saudi-Arabien"]];
+const RADIO_GENRES = [["pop", "Pop"], ["rock", "Rock"], ["news", "Nachrichten"], ["schlager", "Schlager"], ["oldies", "Oldies"],
+  ["dance", "Dance"], ["hiphop", "Hip-Hop"], ["classical", "Klassik"], ["jazz", "Jazz"], ["turkish", "Türkisch"],
+  ["electronic", "Elektronisch"], ["chillout", "Chillout"], ["80s", "80er"], ["90s", "90er"], ["metal", "Metal"],
+  ["country", "Country"], ["arabic", "Arabisch"], ["kids", "Kinder"], ["talk", "Talk"], ["reggae", "Reggae"]];
+const RADIO_DEFAULT_GENRES = ["pop", "rock", "news", "schlager", "oldies", "dance", "hiphop", "classical", "jazz", "turkish"];
+const RADIO_LISTS = [["near", "In der Nähe"], ["top", "Beliebt"], ["own", "Eigene (auf der Show)"], ["search", "Suche"]];
+const RADIO_SERVERS = ["https://de1.api.radio-browser.info", "https://de2.api.radio-browser.info",
+  "https://fi1.api.radio-browser.info", "https://nl1.api.radio-browser.info"];
+const RADIO_MAX = 60;
+
 const MENU_COLORS = { // Fläche, Akzent, gedämpfte Schrift, Ränder
   start: ["#1b2d3f", "#F4A93C", "#a9b6c3", "#2b4a57"], show: ["#2e2723", "#E9A23B", "#8a7d6c", "#3a2c22"],
   blue: ["#153aa8", "#ffd54a", "#a9bdee", "#2474e0"], midnight: ["#222a3b", "#ffd166", "#9ba8c0", "#35507a"],
@@ -165,6 +180,61 @@ input[type=search], input[type=text], input[type=password], select { width:100%;
   line-height:1.2; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; pointer-events:none; }
 .mtile.sel { outline:3px solid #fff; outline-offset:2px; }
 .mtile.drop, .mhead.drop { box-shadow:calc(var(--u)*-6) 0 0 0 #fff; }
+/* Das Radio: wie screen_ottoman_radio_draw.go, in den Farben der Startseite */
+.rpage { --u:0.10417cqw; aspect-ratio:16/10; overflow:hidden; display:flex; flex-direction:column; gap:calc(var(--u)*14);
+  padding:calc(var(--u)*14) calc(var(--u)*16); color:#f1f4f7; background:linear-gradient(180deg, #132233, #0a1521);
+  font-family:var(--paper-font-body1_-_font-family, Roboto, sans-serif); }
+.rplayer { flex:none; height:calc(var(--u)*126); display:flex; align-items:center; gap:calc(var(--u)*18); padding:0 calc(var(--u)*16) 0 calc(var(--u)*13);
+  border-radius:calc(var(--u)*22); background:linear-gradient(180deg, #23354a, #1b2d3f); box-shadow:0 calc(var(--u)*4) calc(var(--u)*16) rgba(0,0,0,.4); }
+.rlogo { flex:none; width:calc(var(--u)*100); height:calc(var(--u)*100); border-radius:calc(var(--u)*16); background:#eef2f5;
+  display:flex; align-items:center; justify-content:center; overflow:hidden; color:#1c1206; font-weight:700; font-size:calc(var(--u)*30); }
+.rlogo img { max-width:80%; max-height:80%; object-fit:contain; }
+.rlogo.none { background:#2b4a57; color:#f1f4f7; }
+.rtext { flex:1; min-width:0; }
+.rtext .n { font-size:calc(var(--u)*30); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rtext .l { font-size:calc(var(--u)*21); color:#4fd6c8; margin-top:calc(var(--u)*6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rbtns { flex:none; display:flex; align-items:center; gap:calc(var(--u)*10); }
+.rbtn { width:calc(var(--u)*50); height:calc(var(--u)*50); border-radius:50%; border:calc(var(--u)*3) solid #2b4a57; background:#17333e;
+  display:flex; align-items:center; justify-content:center; color:#4fd6c8; --mdc-icon-size:calc(var(--u)*26); }
+.rbtn.big { width:calc(var(--u)*70); height:calc(var(--u)*70); --mdc-icon-size:calc(var(--u)*40); }
+.rbtn.lit { border-color:#F4A93C; color:#F4A93C; background:#3a2f24; }
+.rbody { flex:1; min-height:0; display:flex; gap:calc(var(--u)*14); }
+.rrail { flex:none; width:calc(var(--u)*220); border-radius:calc(var(--u)*22); background:#172839; padding:calc(var(--u)*8); overflow:hidden;
+  display:flex; flex-direction:column; gap:calc(var(--u)*4); }
+.rcat { flex:none; height:calc(var(--u)*48); display:flex; align-items:center; gap:calc(var(--u)*8); padding:0 calc(var(--u)*14) 0 calc(var(--u)*10);
+  border-radius:calc(var(--u)*24); font-size:calc(var(--u)*21); color:#f1f4f7; --mdc-icon-size:calc(var(--u)*24); white-space:nowrap; }
+.rcat ha-icon { color:#4fd6c8; }
+.rcat span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.rcat small { font-size:calc(var(--u)*17); color:#a9b6c3; }
+.rcat.on { background:#F4A93C; color:#1c1206; font-weight:700; }
+.rcat.on ha-icon, .rcat.on small { color:#1c1206; }
+.rright { flex:1; min-width:0; border-radius:calc(var(--u)*22); background:#172839; padding:calc(var(--u)*10) calc(var(--u)*14); overflow:auto; }
+.rhead { height:calc(var(--u)*40); display:flex; align-items:baseline; gap:calc(var(--u)*12); padding-left:calc(var(--u)*4); margin-bottom:calc(var(--u)*8); }
+.rhead b { font-size:calc(var(--u)*26); }
+.rhead small { font-size:calc(var(--u)*18); color:#a9b6c3; }
+.rgrid { display:grid; grid-template-columns:repeat(3, 1fr); gap:calc(var(--u)*12); }
+.rtile { height:calc(var(--u)*84); border-radius:calc(var(--u)*18); background:linear-gradient(180deg, #273c51, #21364b); display:flex; align-items:center;
+  gap:calc(var(--u)*12); padding:0 calc(var(--u)*12); cursor:grab; min-width:0; }
+.rtile .rlogo { width:calc(var(--u)*60); height:calc(var(--u)*60); border-radius:calc(var(--u)*12); font-size:calc(var(--u)*20); }
+.rtile .t { flex:1; min-width:0; font-size:calc(var(--u)*19); font-weight:700; line-height:1.25; display:-webkit-box; -webkit-line-clamp:2;
+  -webkit-box-orient:vertical; overflow:hidden; }
+.rtile.lit { background:linear-gradient(180deg, #f8b955, #e09a30); color:#1c1206; }
+.rtile.sel { outline:3px solid #fff; outline-offset:2px; }
+.rtile.drop { box-shadow:calc(var(--u)*-6) 0 0 0 #fff; }
+.rtile.dragging { opacity:.4; }
+.rempty { font-size:calc(var(--u)*21); color:#a9b6c3; padding:calc(var(--u)*20) calc(var(--u)*10); line-height:1.4; }
+.rres { display:flex; align-items:center; gap:10px; padding:6px 4px; border-radius:8px; }
+.rres:hover { background:var(--secondary-background-color); }
+.rres img, .rres .ph { width:36px; height:36px; border-radius:8px; object-fit:contain; background:#eef2f5; flex:none; }
+.rres .ph { display:flex; align-items:center; justify-content:center; color:#1c1206; font-weight:700; font-size:13px; }
+.rres .n { flex:1; min-width:0; }
+.rres .n div { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rres .n small { color:var(--secondary-text-color); }
+.rres button { padding:4px 9px; flex:none; }
+.rres button.added { background:${AMBER}; color:${INK}; }
+.chips { display:flex; flex-wrap:wrap; gap:6px; }
+.chips button { padding:5px 10px; border-radius:16px; font-size:13px; }
+.chips button.on { background:${AMBER}; color:${INK}; }
 .mtile.dragging { opacity:.4; }
 .mtabrow { display:flex; align-items:center; gap:8px; padding:6px 4px; border-radius:8px; }
 .mtabrow:hover { background:var(--secondary-background-color); }
@@ -243,7 +313,8 @@ class EchoStudioPanel extends HTMLElement {
     this._menu = null;        // {tabs, light, scenes, look}
     this._menuOK = false;
     this._menuDirty = false;
-    this._part = "light";     // im Menü: "light", "scenes", "tabs", "look"
+    this._part = "light";     // im Menü: "light", "scenes", "radio", "tabs", "look"
+    this._radioAsk = 0;       // zählt die Suchen in Radio Browser (nur die letzte zählt)
   }
 
   set hass(hass) {
@@ -282,8 +353,11 @@ class EchoStudioPanel extends HTMLElement {
       try {
         const m = await ws({ type: "echo_studio/menu/get" });
         this._menu = { tabs: (m.tabs || []).map((t) => ({ ...t })), light: (m.light || []).map((i) => ({ ...i })),
-          scenes: (m.scenes || []).map((i) => ({ ...i })), look: { theme: m.look?.theme || "", columns: m.look?.columns || 0 } };
+          scenes: (m.scenes || []).map((i) => ({ ...i })), look: { theme: m.look?.theme || "", columns: m.look?.columns || 0 },
+          radio: this._radioFrom(m.radio) };
+        this._radioKnown = !!m.radio; // ein Echo Studio, das das Radio schon kennt
         this._menuOK = true;
+        this._followMenu();
         this._menuSuggest();
       } catch (_) { this._menuOK = false; } // ein Echo Studio ohne Menü auf der anderen Seite: nur Karten
       this._loaded = true;
@@ -420,7 +494,7 @@ class EchoStudioPanel extends HTMLElement {
       }
       if (this._menuDirty && this._menu) {
         const saved = await this._hass.callWS({ type: "echo_studio/menu/save", menu: { version: 1, ...this._menu } });
-        this._menu = { tabs: saved.tabs, light: saved.light, scenes: saved.scenes, look: saved.look };
+        this._menu = { tabs: saved.tabs, light: saved.light, scenes: saved.scenes, look: saved.look, radio: this._radioFrom(saved.radio) };
         if (this._mode === "menu") this._useList();
         this._menuDirty = false;
       }
@@ -467,7 +541,7 @@ class EchoStudioPanel extends HTMLElement {
   }
 
   // Wählt die Karte oder Überschrift it, nachdem sie sich bewegt hat (ihr Index ist ein anderer).
-  _select(it) { this._selected = it.heading !== undefined ? "#" + this._items.indexOf(it) : it.entity; }
+  _select(it) { this._selected = it.heading !== undefined || !it.entity ? "#" + this._items.indexOf(it) : it.entity; }
 
   // Ein Symbol, das nicht aus mdi kommt (etwa m3of: aus Material Symbols): die Echo Show kennt nur mdi.
   _foreign(icon) { return !!icon && !icon.startsWith("mdi:"); }
@@ -1234,13 +1308,13 @@ class EchoStudioPanel extends HTMLElement {
   // this._items auf die Liste, die gerade bearbeitet wird.
   _useList() {
     if (this._mode !== "menu") { this._items = this._cards; return; }
-    this._items = this._part === "scenes" ? this._menu.scenes : this._menu.light;
+    this._items = this._part === "scenes" ? this._menu.scenes : this._part === "radio" ? this._menu.radio.favorites : this._menu.light;
   }
 
   _isList() { return this._part === "light" || this._part === "scenes"; }
 
   _menuMainHtml() {
-    const parts = [["light", "Licht"], ["scenes", "Szenen"], ["tabs", "Reiter"], ["look", "Aussehen"]];
+    const parts = [["light", "Licht"], ["scenes", "Szenen"], ["radio", "Radio"], ["tabs", "Reiter"], ["look", "Aussehen"]];
     return `<div class="main">
       <div class="pane" id="devpane"><h2>Menü der Echo Show</h2>
         <div class="seg mparts" id="mparts">${parts.map(([k, t]) => `<button data-part="${k}" class="${this._part === k ? "on" : ""}">${t}</button>`).join("")}</div>
@@ -1249,11 +1323,13 @@ class EchoStudioPanel extends HTMLElement {
         ${this._isList() && this._suggested?.[this._part] && !this._menuDirty ? `<p class="hint" style="margin:0 4px 10px">Das zeigt die Echo Show
           gerade (alle Geräte mit dem Label „echo“). Sortiere, ergänze Überschriften oder Farben und tippe auf „Speichern“, dann
           gilt es als eigene Liste.</p>` : ""}
-        <div class="screen"><div class="mscreen" id="grid"></div></div>
+        <div class="screen"><div class="${this._part === "radio" ? "rpage" : "mscreen"}" id="grid"></div></div>
         <div class="actions">${this._isList() ? `<button id="addheading">+ Überschrift</button>
           <button id="byroom" title="Ordnet die Kacheln nach ihren Räumen in Home Assistant, mit dem Raum als Überschrift">Nach Räumen trennen</button>` : ""}
         <span class="hint">${this._isList()
           ? "Kacheln ziehen zum Sortieren, antippen zum Gestalten. Ist die Liste leer, zeigt die Echo Show wie bisher alle Geräte mit dem Label „echo“."
+          : this._part === "radio"
+          ? "Favoriten ziehen zum Sortieren, antippen zum Bearbeiten. Auf der Show kommt ein Sender mit langem Druck oder dem Herz im Player dazu; das erscheint hier von selbst."
           : "So sieht das Menü auf der Echo Show aus. Nach „Speichern“ übernimmt sie es gleich."}</span></div></div>
       <div class="pane props" id="props"></div>
     </div>`;
@@ -1272,6 +1348,7 @@ class EchoStudioPanel extends HTMLElement {
           <button data-act="down" ${i === all.length - 1 ? "disabled" : ""} title="Nach hinten">▼</button></div>`).join("")}
         <p class="hint">Reiter, die die Echo Show gerade nicht anbietet (etwa To-do ohne Listen), erscheinen dort nicht.</p>`;
     }
+    if (this._part === "radio") return this._radioLeftHtml();
     if (this._part === "look") {
       const look = this._menu.look;
       return `<label class="hint">Farbthema</label>
@@ -1320,6 +1397,7 @@ class EchoStudioPanel extends HTMLElement {
   // Die Vorschau: die Reiterleiste wie auf der Echo Show, darunter die Kacheln des Reiters (für Reiter
   // und Aussehen die von Licht), in den Farben des gewählten Themas.
   _menuPreviewHtml() {
+    if (this._part === "radio") return this._radioPreviewHtml();
     const look = this._menu.look;
     const [ground, accent, soft, rules] = MENU_COLORS[look.theme || "start"] || MENU_COLORS.start;
     const tabs = this._menuTabsList().filter((t) => t.show !== false);
@@ -1362,6 +1440,7 @@ class EchoStudioPanel extends HTMLElement {
   }
 
   _menuPropsHtml() {
+    if (this._part === "radio") return this._radioPropsHtml();
     if (!this._isList()) {
       return this._part === "tabs"
         ? `<h2>Reiter</h2><p class="hint">Links stellst du ein, welche Reiter das Menü zeigt, in welcher Reihenfolge und unter welchem Namen. Auf der Show gedrückt halten und Ziehen ordnet sie dort nur bis zum nächsten Speichern hier.</p>`
@@ -1387,6 +1466,279 @@ class EchoStudioPanel extends HTMLElement {
       ${nav}<div class="actions"><button id="mremove">Aus dem Menü nehmen</button></div>`;
   }
 
+  // --- Radio ----------------------------------------------------------------------------------------
+
+  // Die Einstellung des Radios, wie Echo Studio sie speichert (menu.py, clean_radio).
+  _radioFrom(r) {
+    r = r || {};
+    return { favorites: (r.favorites || []).map((f) => ({ ...f })), country: r.country || "",
+      genres: Array.isArray(r.genres) ? r.genres.map((g) => ({ ...g })) : null, start: r.start || "",
+      sort: r.sort || "popular", hide: [...(r.hide || [])] };
+  }
+
+  // Trägt die Show einen Favoriten ein oder aus, kommt das Ereignis: dann die Favoriten neu, solange
+  // hier nichts ungespeichert ist.
+  async _followMenu() {
+    if (this._menuUnsub) return;
+    try {
+      this._menuUnsub = await this._hass.connection.subscribeEvents(async () => {
+        if (this._menuDirty || this._busy) return;
+        try {
+          const m = await this._hass.callWS({ type: "echo_studio/menu/get" });
+          this._menu.radio = this._radioFrom(m.radio);
+          if (this._mode === "menu") { this._useList(); this._renderPreview(); this._renderProps(); this._radioRenderResults(); }
+        } catch (_) { /* beim nächsten Mal */ }
+      }, "echo_studio_menu_updated");
+    } catch (_) { /* ohne: nur ein Neuladen zeigt, was die Show eingetragen hat */ }
+  }
+
+  disconnectedCallback() {
+    if (this._menuUnsub) { this._menuUnsub(); this._menuUnsub = null; }
+    this._radioListen(null);
+  }
+
+  _radioGenres() {
+    const r = this._menu.radio;
+    return r.genres || RADIO_DEFAULT_GENRES.map((tag) => ({ tag }));
+  }
+
+  _radioGenreName(g) { return g.name || RADIO_GENRES.find(([t]) => t === g.tag)?.[1] || g.tag.replace(/^./, (c) => c.toUpperCase()); }
+
+  _radioInitials(name) {
+    return (name || "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => [...w][0]).join("").toUpperCase();
+  }
+
+  _radioLogoHtml(st) {
+    return st.logo
+      ? `<div class="rlogo"><img src="${this._esc(st.logo)}" alt="" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add('none');this.replaceWith(document.createTextNode('${this._esc(this._radioInitials(st.name)).replace(/'/g, "")}'))"></div>`
+      : `<div class="rlogo none">${this._esc(this._radioInitials(st.name))}</div>`;
+  }
+
+  // Links: Sender in Radio Browser finden, probehören, zu den Favoriten nehmen.
+  _radioLeftHtml() {
+    this._radioQ = this._radioQ ?? { text: "", country: this._menu.radio.country || "DE" };
+    const q = this._radioQ;
+    return `<input type="search" id="rq" placeholder="Sender suchen, z. B. 1LIVE, TRT, Klassik …" value="${this._esc(q.text)}">
+      <div class="filters" style="grid-template-columns:1fr"><select id="rqcountry">
+        <option value="">Alle Länder</option>${RADIO_COUNTRIES.slice(1).map(([c, n]) => `<option value="${c}" ${q.country === c ? "selected" : ""}>${n}</option>`).join("")}
+      </select></div>
+      <p class="hint">${q.text.trim() ? "Treffer" : "Die beliebtesten Sender"} aus <a href="https://www.radio-browser.info" target="_blank" rel="noreferrer">Radio Browser</a>.
+        ▶ hört hier im Browser probe, + nimmt in die Favoriten. <small>(${this._menu.radio.favorites.length} von ${RADIO_MAX})</small></p>
+      <div id="rresults"></div>`;
+  }
+
+  _wireRadioLeft(left) {
+    let typing = null;
+    left.addEventListener("input", (e) => {
+      if (e.target.id !== "rq") return;
+      this._radioQ.text = e.target.value;
+      clearTimeout(typing);
+      typing = setTimeout(() => this._radioSearch(), 400);
+    });
+    left.addEventListener("change", (e) => {
+      if (e.target.id === "rqcountry") { this._radioQ.country = e.target.value; this._radioSearch(); }
+    });
+    left.addEventListener("click", (e) => {
+      const b = e.target.closest(".rres button[data-act]");
+      if (!b) return;
+      const st = this._radioFound?.[Number(b.closest(".rres").dataset.i)];
+      if (!st) return;
+      if (b.dataset.act === "play") { this._radioListen(this._radioPlaying === st.url ? null : st); return; }
+      this._radioToggleFav(st);
+    });
+    this._radioSearch();
+  }
+
+  async _radioSearch() {
+    const q = this._radioQ;
+    const params = new URLSearchParams({ hidebroken: "true", order: "clickcount", reverse: "true", limit: "60" });
+    if (q.text.trim()) params.set("name", q.text.trim());
+    if (q.country) params.set("countrycode", q.country);
+    const ask = ++this._radioAsk;
+    const box = this._el("rresults");
+    if (box && !this._radioFound) box.innerHTML = `<p class="hint">Lade …</p>`;
+    let got = null;
+    for (const server of RADIO_SERVERS) {
+      try {
+        const res = await fetch(`${server}/json/stations/search?${params}`);
+        if (res.ok) { got = await res.json(); break; }
+      } catch (_) { /* der nächste */ }
+    }
+    if (ask !== this._radioAsk) return; // eine neuere Suche ist unterwegs
+    if (!got) { this._radioFound = []; if (box) box.innerHTML = `<p class="hint">Radio Browser antwortet gerade nicht.</p>`; return; }
+    const seen = new Set();
+    this._radioFound = got.filter((s) => {
+      const key = (s.name || "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+      if (!key || seen.has(key) || !/^https?:\/\//.test(s.url_resolved || s.url || "")) return false;
+      seen.add(key);
+      return true;
+    }).map((s) => ({ name: s.name.trim().replace(/\s+/g, " ").slice(0, 60), url: s.url_resolved || s.url,
+      logo: /^https?:\/\//.test(s.favicon || "") ? s.favicon : "",
+      sub: [s.countrycode, (s.tags || "").split(",")[0], s.bitrate ? s.bitrate + " kbit/s" : "", s.codec].filter(Boolean).join(" · ") }));
+    this._radioRenderResults();
+  }
+
+  _radioRenderResults() {
+    const box = this._el("rresults");
+    if (!box || !this._radioFound) return;
+    const favs = this._menu.radio.favorites;
+    const same = (a, b) => a.url === b.url || a.name.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "") === b.name.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+    box.innerHTML = this._radioFound.length ? this._radioFound.map((st, i) => {
+      const fav = favs.some((f) => same(f, st));
+      return `<div class="rres" data-i="${i}">${st.logo ? `<img src="${this._esc(st.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">`
+        : `<div class="ph">${this._esc(this._radioInitials(st.name))}</div>`}
+        <div class="n"><div>${this._esc(st.name)}</div><small>${this._esc(st.sub)}</small></div>
+        <button data-act="play" title="Im Browser probehören">${this._radioPlaying === st.url ? "■" : "▶"}</button>
+        <button data-act="fav" class="${fav ? "added" : ""}" title="${fav ? "Aus den Favoriten nehmen" : "Zu den Favoriten"}">${fav ? "✓" : "+"}</button></div>`;
+    }).join("") : `<p class="hint">Nichts gefunden.</p>`;
+  }
+
+  _radioToggleFav(st) {
+    const favs = this._menu.radio.favorites;
+    const key = (n) => n.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+    const at = favs.findIndex((f) => f.url === st.url || key(f.name) === key(st.name));
+    if (at >= 0) favs.splice(at, 1);
+    else if (favs.length >= RADIO_MAX) { this._error = `Mehr als ${RADIO_MAX} Favoriten gehen nicht.`; this._renderTop(); return; }
+    else favs.push({ name: st.name, url: st.url, ...(st.logo ? { logo: st.logo } : {}) });
+    this._selected = null;
+    this._radioRenderResults();
+    const left = this._el("mleft")?.querySelector("small");
+    if (left) left.textContent = `(${favs.length} von ${RADIO_MAX})`;
+    this._edited();
+  }
+
+  // Hört st im Browser probe (null: Schluss).
+  _radioListen(st) {
+    if (this._radioAudio) { this._radioAudio.pause(); this._radioAudio.src = ""; this._radioAudio = null; }
+    this._radioPlaying = null;
+    if (st) {
+      this._radioAudio = new Audio(st.url);
+      this._radioPlaying = st.url;
+      this._radioAudio.play().catch(() => {
+        this._error = `„${st.name}“ lässt sich im Browser nicht abspielen (die Show kann es trotzdem können).`;
+        this._radioPlaying = null;
+        this._renderTop();
+        this._radioRenderResults();
+        this._renderProps();
+      });
+    }
+    this._radioRenderResults();
+    if (this._part === "radio" && this._mode === "menu") this._renderProps();
+  }
+
+  // Die Vorschau: der Radio-Bildschirm der Show mit den Favoriten.
+  _radioPreviewHtml() {
+    const r = this._menu.radio;
+    const favs = r.favorites;
+    const sel = this._item(this._selected);
+    const now = sel || favs[0];
+    const lists = [["fav", "Favoriten", "mdi:heart"]];
+    if (!r.hide.includes("near")) lists.push(["near", "In der Nähe", "mdi:map-marker-radius"]);
+    if (!r.hide.includes("top")) lists.push(["top", "Beliebt", "mdi:fire"]);
+    if (!r.hide.includes("own")) lists.push(["own", "Eigene", "mdi:radio-tower"]);
+    if (!r.hide.includes("search")) lists.push(["search", "Suche", "mdi:magnify"]);
+    for (const g of this._radioGenres()) lists.push(["g", this._radioGenreName(g), "mdi:music-note"]);
+    const rail = lists.map(([id, name, icon]) => `<div class="rcat ${id === "fav" ? "on" : ""}"><ha-icon icon="${icon}"></ha-icon>
+      <span>${this._esc(name)}</span>${id === "fav" && favs.length ? `<small>${favs.length}</small>` : ""}</div>`).join("");
+    const tiles = favs.map((f, i) => `<div class="rtile ${this._selected === "#" + i ? "sel" : ""} ${now === f ? "lit" : ""}" draggable="true"
+      data-idx="${i}" data-sel="#${i}">${this._radioLogoHtml(f)}<div class="t">${this._esc(f.name)}</div></div>`).join("");
+    const btn = (icon, cls = "") => `<div class="rbtn ${cls}"><ha-icon icon="mdi:${icon}"></ha-icon></div>`;
+    return `<div class="rplayer">${now ? this._radioLogoHtml(now) : `<div class="rlogo none"><ha-icon icon="mdi:radio"></ha-icon></div>`}
+        <div class="rtext"><div class="n">${this._esc(now ? now.name : "Wähle einen Sender")}</div><div class="l">${now ? "Live" : ""}</div></div>
+        <div class="rbtns">${btn("skip-previous")}${btn("stop", "big lit")}${btn("skip-next")}
+          <span style="width:calc(var(--u)*6)"></span>${btn("volume-minus")}${btn("volume-plus")}
+          <span style="width:calc(var(--u)*6)"></span>${btn("heart", "lit")}${btn("close")}</div></div>
+      <div class="rbody"><div class="rrail">${rail}</div>
+        <div class="rright"><div class="rhead"><b>Favoriten</b>${favs.length ? `<small>${favs.length} Sender</small>` : ""}</div>
+          ${favs.length ? `<div class="rgrid">${tiles}</div>` : `<div class="rempty">Noch keine Favoriten. Suche links einen Sender und tippe auf +.</div>`}</div></div>`;
+  }
+
+  // Rechts: ein gewählter Favorit, sonst die Einstellungen des Radios.
+  _radioPropsHtml() {
+    const it = this._item(this._selected);
+    if (it) {
+      const idx = this._items.indexOf(it);
+      return `<h2>Favorit</h2>
+        <label>Name</label><input type="text" id="rname" maxlength="60" value="${this._esc(it.name)}">
+        <label>Logo (Adresse eines Bildes)</label><div class="row">${this._radioLogoHtml(it).replace('class="rlogo', 'style="width:44px;height:44px;font-size:14px" class="rlogo')}
+          <input type="text" id="rlogo" placeholder="https://…" value="${this._esc(it.logo || "")}"></div>
+        <label>Stream</label><div class="hint" style="word-break:break-all">${this._esc(it.url)}</div>
+        <div class="actions"><button id="rlisten">${this._radioPlaying === it.url ? "■ Probehören beenden" : "▶ Probehören"}</button></div>
+        <div class="actions"><button id="up" ${idx === 0 ? "disabled" : ""}>Nach vorne</button>
+          <button id="down" ${idx === this._items.length - 1 ? "disabled" : ""}>Nach hinten</button></div>
+        <div class="actions"><button id="rremove">Aus den Favoriten nehmen</button><button class="link" id="rback">Zu den Einstellungen</button></div>`;
+    }
+    const r = this._menu.radio;
+    const genres = this._radioGenres();
+    const extra = genres.filter((g) => !RADIO_GENRES.some(([t]) => t === g.tag));
+    return `<h2>Radio</h2>${this._radioKnown ? "" : `<p class="hint">Home Assistant kennt das Radio noch nicht: nach dem Update von Echo Studio einmal neu starten.</p>`}
+      <label>Land für „Beliebt“ und die Genres</label>
+      <select id="rcountry">${RADIO_COUNTRIES.map(([c, n]) => `<option value="${c}" ${r.country === c ? "selected" : ""}>${n}</option>`).join("")}</select>
+      <label>Beim Öffnen</label>
+      <select id="rstart">${[["", "Automatisch (zuletzt offen, sonst Favoriten)"], ["fav", "Favoriten"], ["near", "In der Nähe"], ["top", "Beliebt"],
+        ["last", "Die zuletzt offene Liste"]].map(([k, t]) => `<option value="${k}" ${r.start === k ? "selected" : ""}>${t}</option>`).join("")}</select>
+      <label>Sender in den Listen</label>
+      <div class="seg" id="rsort">${[["popular", "Beliebteste zuerst"], ["az", "A–Z"]].map(([k, t]) =>
+        `<button data-sort="${k}" class="${r.sort === k ? "on" : ""}">${t}</button>`).join("")}</div>
+      <label>Listen links</label>
+      ${RADIO_LISTS.map(([k, t]) => `<label class="check"><input type="checkbox" data-list="${k}" ${r.hide.includes(k) ? "" : "checked"}>${t}</label>`).join("")}
+      <label>Genres <button class="link" id="rgdefault" ${r.genres ? "" : "disabled"}>Standard</button></label>
+      <div class="chips" id="rgenres">${[...RADIO_GENRES, ...extra.map((g) => [g.tag, this._radioGenreName(g)])].map(([t, n]) =>
+        `<button data-tag="${this._esc(t)}" class="${genres.some((g) => g.tag === t) ? "on" : ""}">${this._esc(n)}</button>`).join("")}</div>
+      <div class="row" style="margin-top:8px"><input type="text" id="rgnew" placeholder="Eigenes Genre (Schlagwort, z. B. kurdish)" maxlength="30">
+        <button id="rgadd">+</button></div>
+      <p class="hint">Genres erscheinen in der Reihenfolge, in der du sie wählst. Ohne Musikbibliothek zeigt die Show nur MP3-Sender;
+        mit Music Assistant spielt sie auch AAC und andere.</p>`;
+  }
+
+  _wireRadioProps() {
+    const on = (id, ev, fn) => { const el = this._el(id); if (el) el.addEventListener(ev, fn); };
+    const r = this._menu.radio;
+    const it = this._item(this._selected);
+    if (it) {
+      const idx = this._items.indexOf(it);
+      const step = (to) => { if (this._move(idx, to)) { this._select(it); this._edited(); } };
+      on("up", "click", () => step(idx - 1));
+      on("down", "click", () => step(idx + 2));
+      on("rname", "change", (e) => { it.name = e.target.value.trim() || it.name; this._edited(); this._radioRenderResults(); });
+      on("rlogo", "change", (e) => { const v = e.target.value.trim(); if (/^https?:\/\//.test(v)) it.logo = v; else delete it.logo; this._edited(); });
+      on("rlisten", "click", () => this._radioListen(this._radioPlaying === it.url ? null : it));
+      on("rremove", "click", () => { this._items.splice(idx, 1); this._selected = null; this._edited(); this._radioRenderResults(); });
+      on("rback", "click", () => { this._selected = null; this._markSelected(); this._renderProps(); });
+      return;
+    }
+    on("rcountry", "change", (e) => { r.country = e.target.value; this._edited(false); });
+    on("rstart", "change", (e) => { r.start = e.target.value; this._edited(false); });
+    on("rsort", "click", (e) => { const b = e.target.closest("button[data-sort]"); if (b) { r.sort = b.dataset.sort; this._edited(); } });
+    this._el("props")?.querySelectorAll("input[data-list]").forEach((box) => box.addEventListener("change", () => {
+      r.hide = RADIO_LISTS.map(([k]) => k).filter((k) => k === box.dataset.list ? !box.checked : r.hide.includes(k));
+      this._edited(false);
+    }));
+    on("rgenres", "click", (e) => {
+      const b = e.target.closest("button[data-tag]");
+      if (!b) return;
+      const list = this._radioGenres().map((g) => ({ ...g }));
+      const at = list.findIndex((g) => g.tag === b.dataset.tag);
+      if (at >= 0) list.splice(at, 1);
+      else if (list.length < 16) list.push({ tag: b.dataset.tag });
+      r.genres = list;
+      this._edited();
+    });
+    on("rgdefault", "click", () => { r.genres = null; this._edited(); });
+    const add = () => {
+      const box = this._el("rgnew");
+      const tag = (box?.value || "").trim().toLowerCase();
+      if (!/^[a-z0-9][a-z0-9 &+-]{0,29}$/.test(tag)) { this._error = "Ein Genre ist ein Schlagwort aus Buchstaben und Ziffern, wie in Radio Browser."; this._renderTop(); return; }
+      const list = this._radioGenres().map((g) => ({ ...g }));
+      if (!list.some((g) => g.tag === tag) && list.length < 16) list.push({ tag });
+      r.genres = list;
+      this._error = "";
+      this._edited();
+    };
+    on("rgadd", "click", add);
+    on("rgnew", "keydown", (e) => { if (e.key === "Enter") add(); });
+  }
+
   _renderMenuLeft() {
     const left = this._el("mleft");
     if (left) left.innerHTML = this._menuLeftHtml();
@@ -1406,6 +1758,7 @@ class EchoStudioPanel extends HTMLElement {
     });
     const left = this._el("mleft");
     if (!left) return;
+    if (this._part === "radio") { this._wireRadioLeft(left); return; }
     let typing = null;
     left.addEventListener("input", (e) => {
       if (e.target.id === "q") {
@@ -1449,6 +1802,7 @@ class EchoStudioPanel extends HTMLElement {
 
   // Die Felder der gewählten Kachel oder Überschrift des Menüs.
   _wireMenuProps() {
+    if (this._part === "radio") { this._wireRadioProps(); return; }
     const on = (id, ev, fn) => { const el = this._el(id); if (el) el.addEventListener(ev, fn); };
     const it = this._item(this._selected);
     if (!it) return;
