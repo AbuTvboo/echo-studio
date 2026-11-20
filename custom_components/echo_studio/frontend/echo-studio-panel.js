@@ -1250,7 +1250,8 @@ class EchoStudioPanel extends HTMLElement {
           gerade (alle Geräte mit dem Label „echo“). Sortiere, ergänze Überschriften oder Farben und tippe auf „Speichern“, dann
           gilt es als eigene Liste.</p>` : ""}
         <div class="screen"><div class="mscreen" id="grid"></div></div>
-        <div class="actions">${this._isList() ? `<button id="addheading">+ Überschrift</button>` : ""}
+        <div class="actions">${this._isList() ? `<button id="addheading">+ Überschrift</button>
+          <button id="byroom" title="Ordnet die Kacheln nach ihren Räumen in Home Assistant, mit dem Raum als Überschrift">Nach Räumen trennen</button>` : ""}
         <span class="hint">${this._isList()
           ? "Kacheln ziehen zum Sortieren, antippen zum Gestalten. Ist die Liste leer, zeigt die Echo Show wie bisher alle Geräte mit dem Label „echo“."
           : "So sieht das Menü auf der Echo Show aus. Nach „Speichern“ übernimmt sie es gleich."}</span></div></div>
@@ -1507,7 +1508,34 @@ class EchoStudioPanel extends HTMLElement {
       this._selected = "#0";
       this._edited();
     });
+    on("byroom", "click", () => {
+      if (this._mode !== "menu" || !this._isList()) return;
+      this._items.splice(0, this._items.length, ...this._byRoom(this._items));
+      this._selected = null;
+      this._edited();
+    });
     this._wireGrid();
+  }
+
+  // byRoom ordnet die Kacheln list nach ihren Räumen in Home Assistant: je Raum eine Überschrift mit
+  // seinem Namen, die Räume in der Reihenfolge, in der ihre erste Kachel kam, darin die Kacheln wie
+  // vorher; was keinen Raum hat, zuletzt unter „Weitere“. Die Überschriften von vorher fallen weg.
+  _byRoom(list) {
+    const rooms = new Map();
+    for (const it of list) {
+      if (!it.entity) continue;
+      const e = this._registry.find((x) => x.ei === it.entity);
+      const room = (e && this._areaOf(e)) || "";
+      if (!rooms.has(room)) rooms.set(room, []);
+      rooms.get(room).push(it);
+    }
+    const out = [];
+    const named = [...rooms.keys()].filter((r) => r);
+    for (const room of [...named, ...(rooms.has("") ? [""] : [])]) {
+      if (named.length) out.push({ heading: room || "Weitere" });
+      out.push(...rooms.get(room));
+    }
+    return out;
   }
 
   _wireGrid() {
