@@ -1907,6 +1907,37 @@ class EchoStudioPanel extends HTMLElement {
     return "";
   }
 
+  // Die MAC-Adressen, die bekannt sind: von den Deck-Programmen der PCs (zuerst), aus Home Assistants
+  // Geräten (ihre Verbindungen) und von den device_tracker-Entitäten.
+  _deckMacs() {
+    const out = [], seen = new Set();
+    const add = (name, mac, pc) => {
+      const m = String(mac || "").toUpperCase().replace(/-/g, ":");
+      if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(m) || seen.has(m)) return;
+      seen.add(m);
+      out.push({ name: name || m, mac: m, pc: pc || "" });
+    };
+    for (const [pc, list] of Object.entries(this._deckInfo?.macs || {})) for (const m of list) add(pc, m, pc);
+    for (const d of Object.values(this._devices || {})) {
+      for (const [kind, v] of d.connections || []) if (kind === "mac") add(d.name_by_user || d.name, v);
+    }
+    for (const [id, st] of Object.entries(this._hass.states)) {
+      if (id.startsWith("device_tracker.") && st.attributes?.mac) add(st.attributes.friendly_name || id, st.attributes.mac);
+    }
+    const agents = out.filter((x) => x.pc), rest = out.filter((x) => !x.pc).sort((a, b) => a.name.localeCompare(b.name));
+    return [...agents, ...rest];
+  }
+
+  _deckMacsHtml(chosen) {
+    const q = (this._deckMacQ || "").toLowerCase();
+    const hit = this._deckMacs().filter((x) => !q || x.name.toLowerCase().includes(q) || x.mac.toLowerCase().includes(q));
+    const now = String(chosen || "").toUpperCase().replace(/-/g, ":");
+    if (!hit.length) return `<div class="hint">Kein Gerät passt.</div>`;
+    return hit.slice(0, 80).map((x) => `<button data-mac="${x.mac}" data-name="${this._esc(x.name)}" data-pc="${this._esc(x.pc)}"
+      class="${x.mac === now ? "on" : ""}" title="${x.mac}"><ha-icon icon="mdi:${x.pc ? "desktop-tower-monitor" : "lan"}"></ha-icon>${this._esc(x.name)}
+      <small style="opacity:.6">${x.mac.slice(-8)}</small></button>`).join("");
+  }
+
   // Die Apps eines PCs als Knöpfe, gefiltert nach der Suche.
   _deckAppsHtml(apps, chosen) {
     const q = (this._deckAppQ || "").toLowerCase().replace(/[\s._-]/g, "");
@@ -2044,8 +2075,11 @@ class EchoStudioPanel extends HTMLElement {
       fields = `<label>MAC-Adresse des PCs</label>
         <input type="text" id="dkvalue" value="${this._esc(b.value || "")}" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17" spellcheck="false">
         ${ok ? "" : `<div class="hint" style="color:#ff8a80">Das ist keine MAC-Adresse (sechs Paare aus 0–9 und A–F).</div>`}
-        <div class="hint">Steht unter Windows bei <code>ipconfig /all</code> als „Physische Adresse“, unter Linux bei <code>ip link</code> hinter „link/ether“,
-          oder in der Fritz!Box beim Gerät. Im BIOS und im Netzwerkadapter muss Wake on LAN an sein.</div>
+        ${this._deckMacs().length ? `<label>Bekannte Geräte <small class="hint">(antippen übernimmt die Adresse)</small></label>
+          <input type="search" id="dkmacq" placeholder="Gerät suchen …" value="${this._esc(this._deckMacQ || "")}">
+          <div class="dkapps" id="dkmacs">${this._deckMacsHtml(b.value)}</div>` : ""}
+        <div class="hint">PCs mit dem Deck-Programm melden ihre Adresse selbst; dazu kommen die Geräte, die Home Assistant mit MAC-Adresse kennt
+          (etwa über die Fritz!Box-Integration). Im BIOS und im Netzwerkadapter muss Wake on LAN an sein.</div>
         <label>Anzeige „läuft“ <small class="hint">(optional)</small></label>
         <select id="dkcomputer"><option value="">Ohne Anzeige</option>${pcs.map((c) =>
           `<option ${c === b.computer ? "selected" : ""}>${this._esc(c)}</option>`).join("")}</select>
@@ -2213,7 +2247,27 @@ class EchoStudioPanel extends HTMLElement {
     });
     on("dkentity", "change", (e) => set({ entity: e.target.value.trim() }, true));
     on("dkpagego", "change", (e) => set({ page: Number(e.target.value) }));
-    on("dkcomputer", "change", (e) => set({ computer: e.target.value.trim() }, true));
+    on("dkcomputer", "change", (e) => {
+      const pc = e.target.value.trim();
+      const patch = { computer: pc };
+      const mac = this._deckInfo?.macs?.[pc]?.[0]; // Wake on LAN: die Adresse, die das Deck-Programm meldet
+      if (b.action === "wol" && mac && !b.value) patch.value = mac.toUpperCase();
+      set(patch, true);
+    });
+    on("dkmacq", "input", (e) => {
+      this._deckMacQ = e.target.value;
+      const box = this._el("dkmacs");
+      if (box) box.innerHTML = this._deckMacsHtml(b.value);
+    });
+    this._el("dkmacs")?.addEventListener("click", (e) => {
+      const m = e.target.closest("button[data-mac]");
+      if (!m) return;
+      const patch = { value: m.dataset.mac };
+      if (m.dataset.pc) patch.computer = m.dataset.pc;
+      if (!b.label && !m.dataset.pc) patch.label = m.dataset.name;
+      this._deckMacQ = "";
+      set(patch, true);
+    });
     on("dkappq", "input", (e) => {
       this._deckAppQ = e.target.value;
       const box = this._el("dkapps");

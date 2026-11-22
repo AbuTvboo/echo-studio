@@ -124,6 +124,6 @@ def test_no_deck_stays_absent():
 def test_deck_info_keeps_only_names():
     info = menu.clean_deck_info({"computers": ["PC", 3, ""], "obs_scenes": ["Szene"], "key": "geheim", "obs_connected": True})
     assert info == {"computers": ["PC"], "obs_scenes": ["Szene"], "obs_inputs": [], "obs_connected": True,
-                    "apps": {}, "scripts": {}}
+                    "apps": {}, "scripts": {}, "macs": {}}
     info = menu.clean_deck_info({"apps": {"PC": ["Firefox ESR", 5, ""], "": ["x"]}, "scripts": {"PC": "kein"}})
     assert info["apps"] == {"PC": ["Firefox ESR"]} and info["scripts"] == {}

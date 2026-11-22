@@ -357,4 +357,4 @@ def clean_deck_info(raw: Any) -> dict[str, Any]:
 
     return {"computers": _names("computers"), "obs_scenes": _names("obs_scenes"),
             "obs_inputs": _names("obs_inputs"), "obs_connected": raw.get("obs_connected") is True,
-            "apps": _per_pc("apps"), "scripts": _per_pc("scripts")}
+            "apps": _per_pc("apps"), "scripts": _per_pc("scripts"), "macs": _per_pc("macs")}
