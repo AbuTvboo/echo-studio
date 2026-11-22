@@ -66,7 +66,8 @@ class StudioData:
         self.menu_store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, MENU_STORAGE_KEY)
         self.menu: dict[str, Any] = clean_menu({})
         # Was die Show zuletzt über OBS und ihre PCs sagte (nur Namen), für den Deck-Designer.
-        self.deck_info: dict[str, Any] = {"computers": [], "obs_scenes": [], "obs_inputs": [], "obs_connected": False}
+        self.deck_info: dict[str, Any] = {"computers": [], "obs_scenes": [], "obs_inputs": [], "obs_connected": False,
+                                          "apps": {}, "scripts": {}}
         self.files = Path(hass.config.path(FILES_DIR))
 
 

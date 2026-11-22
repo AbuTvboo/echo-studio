@@ -217,6 +217,10 @@ input[type=search], input[type=text], input[type=password], select { width:100%;
 .dkgridset { gap:8px; align-items:center; }
 .dkpage button[data-act="go"].on { background:#4f8cff; color:#fff; }
 .dkadd button { margin-left:auto; min-width:34px; font-size:18px; }
+.dkapps { display:flex; flex-wrap:wrap; gap:6px; max-height:260px; overflow:auto; margin-top:8px; }
+.dkapps button { display:flex; align-items:center; gap:6px; padding:6px 10px; font-size:13px; }
+.dkapps button ha-icon { --mdc-icon-size:18px; }
+.dkapps button.on { background:#4f8cff; color:#fff; }
 .dkswatch { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 .dkswatch button { width:30px; height:30px; padding:0; border-radius:8px; background:var(--c); border:2px solid transparent; color:#fff; }
 .dkswatch button.on { border-color:#fff; outline:2px solid #4f8cff; }
@@ -1897,6 +1901,30 @@ class EchoStudioPanel extends HTMLElement {
     return "";
   }
 
+  // Die Apps eines PCs als Knöpfe, gefiltert nach der Suche.
+  _deckAppsHtml(apps, chosen) {
+    const q = (this._deckAppQ || "").toLowerCase().replace(/[\s._-]/g, "");
+    const hit = apps.filter((n) => !q || n.toLowerCase().replace(/[\s._-]/g, "").includes(q));
+    if (!hit.length) return `<div class="hint">Keine App passt.</div>`;
+    return hit.slice(0, 120).map((n) => `<button data-app="${this._esc(n)}" class="${n === chosen ? "on" : ""}">
+      <ha-icon icon="${this._deckAppIcon(n)}"></ha-icon>${this._esc(n)}</button>`).join("")
+      + (hit.length > 120 ? `<div class="hint">… und ${hit.length - 120} weitere: tippe mehr vom Namen.</div>` : "");
+  }
+
+  // Ein passendes Symbol für bekannte Apps.
+  _deckAppIcon(name) {
+    const n = name.toLowerCase();
+    const known = [["firefox", "firefox"], ["chrom", "google-chrome"], ["edge", "microsoft-edge"], ["spotify", "spotify"],
+      ["discord", "discord"], ["steam", "steam"], ["code", "microsoft-visual-studio-code"], ["terminal", "console"],
+      ["konsole", "console"], ["powershell", "powershell"], ["files", "folder"], ["dolphin", "folder"], ["explorer", "folder"],
+      ["vlc", "vlc"], ["obs", "record-rec"], ["thunderbird", "email"], ["outlook", "microsoft-outlook"], ["word", "microsoft-word"],
+      ["writer", "file-document"], ["excel", "microsoft-excel"], ["calc", "calculator"], ["teams", "microsoft-teams"],
+      ["whatsapp", "whatsapp"], ["telegram", "send"], ["youtube", "youtube"], ["netflix", "netflix"], ["gimp", "draw"],
+      ["settings", "cog"], ["einstellungen", "cog"], ["rechner", "calculator"], ["notepad", "note-edit"], ["editor", "note-edit"]];
+    const k = known.find(([w]) => n.includes(w));
+    return "mdi:" + (k ? k[1] : "application");
+  }
+
   _deckLeftHtml() {
     const d = this._deckEnsure();
     const info = this._deckInfo || {};
@@ -1990,13 +2018,33 @@ class EchoStudioPanel extends HTMLElement {
         `<option value="${i + 1}" ${b.page === i + 1 ? "selected" : ""}>${this._esc(this._deckPageName(i))}</option>`).join("")}</select>`;
     } else if (a.startsWith("pc_")) {
       const what = { pc_keys: ["Tasten", "ctrl+shift+m, media_play_pause, f13"], pc_type: ["Text", "Dieser Text wird getippt"],
-        pc_open: ["App oder Webseite", "https://youtube.com oder notepad"], pc_run: ["Skript", "C:\\Skripte\\start.bat"] }[a];
-      fields = `<label>PC</label><input type="text" id="dkcomputer" list="dkpcs" value="${this._esc(b.computer || "")}"
-          placeholder="${this._esc((info.computers || [])[0] || "Name des PCs")}">${list("dkpcs", info.computers)}
+        pc_open: ["App oder Webseite", "Unten antippen, oder https://youtube.com"], pc_run: ["Skript", "Name aus scripts.txt"] }[a];
+      const pcs = info.computers || [];
+      const pcField = pcs.length
+        ? `<select id="dkcomputer">${(pcs.includes(b.computer) || !b.computer ? pcs : [b.computer, ...pcs]).map((c) =>
+            `<option ${c === b.computer ? "selected" : ""}>${this._esc(c)}</option>`).join("")}</select>
+           ${b.computer && !pcs.includes(b.computer) ? `<div class="hint" style="color:#ff8a80">„${this._esc(b.computer)}“ ist nicht gekoppelt.</div>` : ""}`
+        : `<input type="text" id="dkcomputer" value="${this._esc(b.computer || "")}" placeholder="Name des PCs">
+           <div class="hint">Noch kein PC gekoppelt (Einrichtungsseite der Show → Deck → Computers).</div>`;
+      fields = `<label>PC</label>${pcField}
         <label>${what[0]}</label>${a === "pc_type"
           ? `<textarea id="dkvalue" rows="3" placeholder="${this._esc(what[1])}">${this._esc(b.value || "")}</textarea>
              <div class="hint">Steht in Home Assistant lesbar: keine Passwörter.</div>`
           : `<input type="text" id="dkvalue" value="${this._esc(b.value || "")}" placeholder="${this._esc(what[1])}">`}`;
+      const pc = b.computer || pcs[0] || "";
+      if (a === "pc_open") {
+        const apps = (info.apps || {})[pc] || [];
+        fields += apps.length
+          ? `<label>Apps auf ${this._esc(pc)} <small class="hint">(${apps.length})</small></label>
+             <input type="search" id="dkappq" placeholder="App suchen … (z. B. fire)" value="${this._esc(this._deckAppQ || "")}">
+             <div class="dkapps" id="dkapps">${this._deckAppsHtml(apps, b.value)}</div>`
+          : `<div class="hint">Die App-Liste von ${this._esc(pc || "dem PC")} kommt, sobald das Deck-Programm dort läuft und die Show es erreicht hat (bis zu drei Minuten). Ein Teil des Namens reicht auch: „firefox“ findet „Firefox ESR“.</div>`;
+      }
+      if (a === "pc_run") {
+        const scripts = (info.scripts || {})[pc] || [];
+        if (scripts.length) fields += `<div class="dkapps">${scripts.map((n) =>
+          `<button data-app="${this._esc(n)}" class="${n === b.value ? "on" : ""}">${this._esc(n)}</button>`).join("")}</div>`;
+      }
     } else if (a === "obs_scene" || a === "obs_source") {
       fields = `<label>Szene</label><input type="text" id="dkscene" list="dkscenes" value="${this._esc(b.scene || "")}">${list("dkscenes", info.obs_scenes)}`;
       if (a === "obs_source") fields += `<label>Quelle</label><input type="text" id="dksource" value="${this._esc(b.source || "")}">`;
@@ -2018,6 +2066,13 @@ class EchoStudioPanel extends HTMLElement {
 
   _wireDeckLeft(left) {
     const d = this._deckEnsure();
+    if (!this._deckInfoAt || Date.now() - this._deckInfoAt > 10000) { // die PCs und ihre Apps, frisch
+      this._deckInfoAt = Date.now();
+      this._hass.callWS({ type: "echo_studio/deck/info" }).then((i) => {
+        this._deckInfo = i;
+        if (this._mode === "menu" && this._part === "deck") { this._renderMenuLeft(); this._renderProps(); }
+      }).catch(() => {});
+    }
     let typing = null;
     left.addEventListener("input", (e) => {
       if (e.target.id !== "q") return;
@@ -2121,7 +2176,24 @@ class EchoStudioPanel extends HTMLElement {
     });
     on("dkentity", "change", (e) => set({ entity: e.target.value.trim() }, true));
     on("dkpagego", "change", (e) => set({ page: Number(e.target.value) }));
-    on("dkcomputer", "change", (e) => set({ computer: e.target.value.trim() }));
+    on("dkcomputer", "change", (e) => set({ computer: e.target.value.trim() }, true));
+    on("dkappq", "input", (e) => {
+      this._deckAppQ = e.target.value;
+      const box = this._el("dkapps");
+      const pc = b.computer || this._deckInfo?.computers?.[0] || "";
+      if (box) box.innerHTML = this._deckAppsHtml((this._deckInfo?.apps || {})[pc] || [], b.value);
+    });
+    this._el("props")?.querySelectorAll(".dkapps").forEach((box) => box.addEventListener("click", (e) => {
+      const app = e.target.closest("button[data-app]");
+      if (!app) return;
+      const name = app.dataset.app;
+      const patch = { value: name };
+      if (!b.computer && this._deckInfo?.computers?.length) patch.computer = this._deckInfo.computers[0];
+      if (!b.label) patch.label = name.replace(/\s+(ESR|Browser)$/i, "");
+      if (!b.icon && b.action === "pc_open") { const ic = this._deckAppIcon(name).replace(/^mdi:/, ""); if (ic !== "application") patch.icon = ic; }
+      this._deckAppQ = "";
+      set(patch, true);
+    }));
     on("dkvalue", "change", (e) => set({ value: e.target.value }));
     on("dkscene", "change", (e) => set({ scene: e.target.value.trim() }));
     on("dksource", "change", (e) => set({ source: e.target.value.trim() }));

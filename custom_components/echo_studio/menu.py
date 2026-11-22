@@ -344,5 +344,17 @@ def clean_deck_info(raw: Any) -> dict[str, Any]:
             return []
         return [n for n in (_text(x, 128) for x in v[:200]) if n]
 
+    def _per_pc(key: str) -> dict[str, list[str]]:
+        v = raw.get(key) or {}
+        if not isinstance(v, dict):
+            return {}
+        out: dict[str, list[str]] = {}
+        for pc, names in list(v.items())[:20]:
+            pc = _text(pc, 128)
+            if pc and isinstance(names, list):
+                out[pc] = [n for n in (_text(x, 128) for x in names[:2000]) if n]
+        return out
+
     return {"computers": _names("computers"), "obs_scenes": _names("obs_scenes"),
-            "obs_inputs": _names("obs_inputs"), "obs_connected": raw.get("obs_connected") is True}
+            "obs_inputs": _names("obs_inputs"), "obs_connected": raw.get("obs_connected") is True,
+            "apps": _per_pc("apps"), "scripts": _per_pc("scripts")}
