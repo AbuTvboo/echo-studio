@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -50,7 +51,9 @@ from .menu import MenuError, clean_deck_info, clean_menu, radio_favorite
 
 _LOGGER = logging.getLogger(__name__)
 
-VERSION = "0.5.0"
+# Die Version aus manifest.json: sie hängt an der Adresse der Oberfläche, damit der Browser nach einem
+# Update die neue lädt und nicht die alte aus seinem Speicher.
+VERSION = json.loads((Path(__file__).parent / "manifest.json").read_text(encoding="utf-8"))["version"]
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 
 
