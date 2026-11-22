@@ -38,9 +38,10 @@ const MENU_DOMAINS = { light: ["light", "switch"], scenes: ["scene", "script"] }
 // Das Deck (Hilal OS): was eine Taste tun kann, wie config.DeckActions der Show.
 const DECK_ACTIONS = [["", "Leer"], ["ha_toggle", "Home Assistant: an/aus"], ["ha_run", "Home Assistant: ausführen (Szene, Skript, Taste)"],
   ["page", "Seite öffnen (Ordner)"], ["wol", "PC einschalten (Wake on LAN)"], ["pc_keys", "PC: Tastenkürzel"], ["pc_type", "PC: Text tippen"], ["pc_open", "PC: App oder Webseite öffnen"],
-  ["pc_run", "PC: Skript ausführen"], ["obs_scene", "OBS: Szene wechseln"], ["obs_stream", "OBS: Stream an/aus"],
+  ["pc_run", "PC: Skript ausführen"], ["pc_power", "PC: Herunterfahren, Neustart, Ruhezustand, Sperren"], ["obs_scene", "OBS: Szene wechseln"], ["obs_stream", "OBS: Stream an/aus"],
   ["obs_record", "OBS: Aufnahme an/aus"], ["obs_mute", "OBS: Ton stumm/an"], ["obs_source", "OBS: Quelle zeigen/verbergen"]];
 const DECK_COLORS = ["#e53935", "#fb8c00", "#fdd835", "#43a047", "#00acc1", "#1e88e5", "#5e35b1", "#d81b60", "#6d4c41", "#546e7a", "#212121"];
+const DECK_POWER = [["shutdown", "Herunterfahren"], ["restart", "Neu starten"], ["sleep", "Ruhezustand"], ["lock", "Sperren"]];
 const DECK_TOGGLE = ["light", "switch", "fan", "cover", "input_boolean", "media_player", "lock", "climate"];
 const DECK_RUN = ["scene", "script", "button", "input_button", "automation"];
 const DECK_NAMED = { blue: "#3d8be8", green: "#3fb96a", red: "#e5484d", orange: "#f08a2c", purple: "#9b6be0", gray: "#9a9a9a" };
@@ -1885,6 +1886,7 @@ class EchoStudioPanel extends HTMLElement {
       obs_mute: on ? "microphone-off" : "microphone", obs_source: on ? "eye" : "eye-off", pc_keys: "keyboard",
       pc_type: "form-textbox", pc_open: "open-in-app", pc_run: "script-text-play", page: "folder", wol: "power" };
     if (b.action === "ha_toggle" || b.action === "ha_run") return "mdi:" + (ha[dom] || "home-assistant");
+    if (b.action === "pc_power") return "mdi:" + ({ restart: "restart", sleep: "power-sleep", lock: "lock" }[b.value] || "power-standby");
     return own[b.action] ? "mdi:" + own[b.action] : "";
   }
 
@@ -1903,6 +1905,7 @@ class EchoStudioPanel extends HTMLElement {
       case "pc_type": return "Text";
       case "pc_open": case "pc_run": return b.value || "";
       case "wol": return b.computer || "Wake on LAN";
+      case "pc_power": return DECK_POWER.find(([k]) => k === (b.value || "shutdown"))?.[1] || "";
     }
     return "";
   }
@@ -2087,6 +2090,16 @@ class EchoStudioPanel extends HTMLElement {
     } else if (a === "page") {
       fields = `<label>Öffnet</label><select id="dkpagego">${this._menu.deck.pages.map((_, i) =>
         `<option value="${i + 1}" ${b.page === i + 1 ? "selected" : ""}>${this._esc(this._deckPageName(i))}</option>`).join("")}</select>`;
+    } else if (a === "pc_power") {
+      const pcs = info.computers || [];
+      fields = `<label>PC</label>${pcs.length
+        ? `<select id="dkcomputer">${(pcs.includes(b.computer) || !b.computer ? pcs : [b.computer, ...pcs]).map((c) =>
+            `<option ${c === b.computer ? "selected" : ""}>${this._esc(c)}</option>`).join("")}</select>`
+        : `<input type="text" id="dkcomputer" value="${this._esc(b.computer || "")}" placeholder="Name des PCs">`}
+        <label>Was die Taste tut</label>
+        <div class="seg dkpower">${DECK_POWER.map(([k, t]) => `<button data-power="${k}" class="${(b.value || "shutdown") === k ? "on" : ""}">${t}</button>`).join("")}</div>
+        <div class="hint">Herunterfahren und Neu starten brauchen auf der Show einen zweiten Tipp, damit es nicht aus Versehen passiert.
+          Der PC braucht das Deck-Programm ab v1.30.5.</div>`;
     } else if (a.startsWith("pc_")) {
       const what = { pc_keys: ["Tasten", "ctrl+shift+m, media_play_pause, f13"], pc_type: ["Text", "Dieser Text wird getippt"],
         pc_open: ["App oder Webseite", "Unten antippen, oder https://youtube.com"], pc_run: ["Skript", "Name aus scripts.txt"] }[a];
@@ -2243,6 +2256,7 @@ class EchoStudioPanel extends HTMLElement {
       if (a) Object.assign(b, { action: a }, Object.fromEntries(Object.entries(keep).filter(([, v]) => v)));
       if (a === "page") b.page = Math.min(2, this._menu.deck.pages.length);
       if (a.startsWith("pc_") && this._deckInfo?.computers?.length) b.computer = this._deckInfo.computers[0];
+      if (a === "pc_power") b.value = "shutdown";
       this._edited(true);
     });
     on("dkentity", "change", (e) => set({ entity: e.target.value.trim() }, true));
@@ -2293,6 +2307,8 @@ class EchoStudioPanel extends HTMLElement {
     on("dkcolor", "change", (e) => set({ color: e.target.value.toLowerCase() }, true));
     this._el("props")?.querySelectorAll(".dkswatch button[data-color]").forEach((s) =>
       s.addEventListener("click", () => set({ color: s.dataset.color }, true)));
+    this._el("props")?.querySelectorAll(".dkpower button[data-power]").forEach((p) =>
+      p.addEventListener("click", () => set({ value: p.dataset.power }, true)));
     on("dkclear", "click", () => { for (const k of Object.keys(b)) delete b[k]; this._edited(true); });
     const holder = this._el("iconpicker");
     if (holder) {
