@@ -33,7 +33,7 @@ const PREVIEW_DELAY = 400;      // Zustandsänderungen sammeln, bevor die Vorsch
 // die Farbthemen und ihre Farben (wie drawer_ottoman_menu.go und tv_ottoman_theme.go sie zeichnen:
 // Fläche, Akzent, gedämpfte Schrift, Ränder).
 const MENU_TABS = [["light", "Licht"], ["music", "Musik"], ["radio", "Radio"], ["tv", "TV"], ["football", "Fußball"],
-  ["cameras", "Kameras"], ["scenes", "Szenen"], ["announce", "Ansagen"], ["call", "Anrufen"], ["todo", "To-do"]];
+  ["cameras", "Kameras"], ["scenes", "Szenen"], ["announce", "Ansagen"], ["call", "Anrufen"], ["todo", "To-do"], ["deck", "Deck"]];
 const MENU_DOMAINS = { light: ["light", "switch"], scenes: ["scene", "script"] };
 // Das Deck (Hilal OS): was eine Taste tun kann, wie config.DeckActions der Show.
 const DECK_ACTIONS = [["", "Leer"], ["ha_toggle", "Home Assistant: an/aus"], ["ha_run", "Home Assistant: ausführen (Szene, Skript, Taste)"],
@@ -190,10 +190,15 @@ input[type=search], input[type=text], input[type=password], select { width:100%;
 .mtile.sel { outline:3px solid #fff; outline-offset:2px; }
 .mtile.drop, .mhead.drop { box-shadow:calc(var(--u)*-6) 0 0 0 #fff; }
 /* Das Deck: wie drawer_ottoman_deck.go, dunkel wie Macro Deck */
-.dkscreen { --u:0.10417cqw; aspect-ratio:16/10; overflow:hidden; display:flex; flex-direction:column; padding:calc(var(--u)*15);
+.dkscreen { --u:0.10417cqw; aspect-ratio:16/10; overflow:hidden; position:relative;
   background:#171719; color:#f4f4f6; font-family:var(--paper-font-body1_-_font-family, Roboto, sans-serif); }
-.dkgrid { flex:1; min-height:0; display:grid; gap:calc(var(--u)*10); justify-content:center; align-content:center; }
-.dkkey { position:relative; width:var(--k); height:var(--k); border-radius:14%; cursor:grab; display:flex; flex-direction:column;
+.dkgrid { position:absolute; inset:0; }
+.dktop { position:absolute; left:0; right:0; top:0; display:flex; align-items:center; gap:calc(var(--u)*14); padding:0 calc(var(--u)*17);
+  background:color-mix(in srgb, var(--mg) 90%, #000); }
+.dktop .mtabs { --mr:color-mix(in srgb, var(--mg) 70%, #fff); --md:#c8d0da; }
+.dktop .x { flex:none; width:calc(var(--u)*45); height:calc(var(--u)*45); border-radius:50%; background:color-mix(in srgb, var(--mg) 70%, #fff);
+  display:flex; align-items:center; justify-content:center; font-size:calc(var(--u)*30); color:#fff; }
+.dkkey { position:absolute; width:var(--k); height:var(--k); box-sizing:border-box; padding:0; margin:0; border-radius:14%; cursor:grab; display:flex; flex-direction:column;
   align-items:center; justify-content:center; gap:calc(var(--k)*0.04); --c:#2b2b2f;
   background:linear-gradient(180deg, color-mix(in srgb, var(--c) 88%, #fff), color-mix(in srgb, var(--c) 92%, #000));
   border:1px solid color-mix(in srgb, var(--c) 78%, #fff); box-shadow:0 calc(var(--u)*3) calc(var(--u)*8) rgba(0,0,0,.45); }
@@ -206,7 +211,7 @@ input[type=search], input[type=text], input[type=password], select { width:100%;
 .dkkey.sel { outline:3px solid #4f8cff; outline-offset:3px; }
 .dkkey.drop { outline:3px dashed #fff; outline-offset:3px; }
 .dkkey.dragging { opacity:.4; }
-.dkbar { flex:none; height:calc(var(--u)*48); position:relative; display:flex; align-items:center; justify-content:center; }
+.dkbar { position:absolute; display:flex; align-items:center; justify-content:center; }
 .dkt { text-align:center; font-weight:700; font-size:calc(var(--u)*18); }
 .dkdots { display:flex; gap:calc(var(--u)*8); justify-content:center; margin-top:calc(var(--u)*5); }
 .dkdots i { width:calc(var(--u)*7); height:calc(var(--u)*7); border-radius:50%; background:#3a3a40; }
@@ -1969,14 +1974,25 @@ class EchoStudioPanel extends HTMLElement {
   }
 
   // Die Vorschau, wie drawer_ottoman_deck.go den Reiter zeichnet.
+  // Gerechnet in den Pixeln der Echo Show 8 (1280 × 800, wie drawer_ottoman_deck.go: dkGrid), gezeigt
+  // in den 960 Einheiten der Vorschau.
   _deckPreviewHtml() {
     const d = this._deckEnsure();
     const buttons = this._deckButtons();
     const n = d.cols * d.rows;
-    const side = Math.floor(Math.min((930 - (d.cols - 1) * 10) / d.cols, (516 - (d.rows - 1) * 10) / d.rows)); // in 960 × 600
+    const S = 1.33, px = (v) => Math.round(v * S);
+    const head = 109, m = px(14), gap = px(12), barH = px(48);
+    const bar = d.pages.length > 1 || !d.pages.some((p) => p.buttons.some((b) => b.action));
+    const ax0 = m, ay0 = head + m, ax1 = 1280 - m, ay1 = 800 - m;
+    const gy1 = bar ? ay1 - barH - px(6) : ay1;
+    const side = Math.floor(Math.min((ax1 - ax0 - (d.cols - 1) * gap) / d.cols, (gy1 - ay0 - (d.rows - 1) * gap) / d.rows));
+    const w = d.cols * side + (d.cols - 1) * gap, h = d.rows * side + (d.rows - 1) * gap;
+    const x0 = ax0 + Math.floor((ax1 - ax0 - w) / 2), y0 = ay0 + Math.floor((gy1 - ay0 - h) / 2);
+    const u = (v) => `calc(var(--u)*${(v * 0.75).toFixed(2)})`;
     const keys = buttons.slice(0, n).map((b, i) => {
       const sel = this._selected === "#" + i ? "sel" : "";
-      if (!b.action) return `<div class="dkkey empty ${sel}" draggable="true" data-idx="${i}" data-sel="#${i}"></div>`;
+      const at = `left:${u(x0 + (i % d.cols) * (side + gap))};top:${u(y0 + Math.floor(i / d.cols) * (side + gap))}`;
+      if (!b.action) return `<div class="dkkey empty ${sel}" draggable="true" data-idx="${i}" data-sel="#${i}" style="${at}"></div>`;
       const on = this._deckOn(b);
       const own = this._deckColor(b.color);
       const stateful = ["ha_toggle", "obs_scene", "obs_stream", "obs_record", "obs_mute", "obs_source"].includes(b.action);
@@ -1984,14 +2000,21 @@ class EchoStudioPanel extends HTMLElement {
       if (on) fill = own || "#2eb85c";
       else if (own) fill = stateful ? `color-mix(in srgb, ${own} 38%, #2b2b2f)` : own;
       const icon = this._deckIcon(b, on);
-      return `<div class="dkkey ${on ? "lit" : ""} ${sel}" draggable="true" data-idx="${i}" data-sel="#${i}" style="--c:${fill}">
+      return `<div class="dkkey ${on ? "lit" : ""} ${sel}" draggable="true" data-idx="${i}" data-sel="#${i}" style="--c:${fill};${at}">
         ${icon ? `<ha-icon icon="${this._esc(icon)}"></ha-icon>` : ""}<div class="l">${this._esc(this._deckLabel(b))}</div>
         ${b.action === "page" ? `<span class="fold">›</span>` : ""}</div>`;
     }).join("");
     const dots = d.pages.length > 1 ? `<div class="dkdots">${d.pages.map((_, i) => `<i class="${i === this._deckPage ? "on" : ""}"></i>`).join("")}</div>` : "";
     const arrows = d.pages.length > 1 ? `<div class="dkarrows"><span data-dpage="prev">‹</span><span data-dpage="next">›</span></div>` : "";
-    return `<div class="dkgrid" style="--k:calc(var(--u)*${side});grid-template-columns:repeat(${d.cols},var(--k))">${keys}</div>
-      <div class="dkbar"><div class="dkt">${this._esc(this._deckPageName(this._deckPage))}${dots}</div>${arrows}</div>`;
+    const [ground, accent] = MENU_COLORS[this._menu.look.theme || "start"] || MENU_COLORS.start;
+    const tabs = this._menuTabsList().filter((t) => t.show !== false);
+    const at = Math.max(tabs.findIndex((t) => t.id === "deck"), 0);
+    const strip = tabs.slice(Math.max(0, at - 6), at + 1).map((t) => `<span class="${t.id === "deck" ? "on" : ""}">${this._esc(t.name
+      || MENU_TABS.find(([k]) => k === t.id)?.[1] || t.id)}</span>`).join("");
+    return `<div class="dktop" style="--mg:${ground};--ma:${accent};height:${u(head)}"><div class="mtabs">${strip}</div><span class="x">×</span></div>
+      <div class="dkgrid" style="--k:${u(side)}">${keys}</div>
+      ${bar ? `<div class="dkbar" style="top:${u(ay1 - barH)};height:${u(barH)};left:${u(ax0)};right:${u(m)}">
+        <div class="dkt">${this._esc(this._deckPageName(this._deckPage))}${dots}</div>${arrows}</div>` : ""}`;
   }
 
   _deckPropsHtml() {

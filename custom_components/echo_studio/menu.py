@@ -41,7 +41,7 @@ import re
 from typing import Any
 
 # Die Reiter, die die Echo Show kennt.
-TABS = ("light", "music", "radio", "tv", "football", "cameras", "scenes", "announce", "call", "todo")
+TABS = ("light", "music", "radio", "tv", "football", "cameras", "scenes", "announce", "call", "todo", "deck")
 
 # Die Farbthemen: „start“ die Farben der Startseite, „show“ das Design der Echo Show, die übrigen wie
 # die Farbthemen des Fernsehens.
