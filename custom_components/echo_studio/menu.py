@@ -291,6 +291,9 @@ def _deck_button(raw: Any) -> dict[str, Any]:
     entity = raw.get("entity")
     if isinstance(entity, str) and _ENTITY.match(entity):
         b["entity"] = entity
+    mac = raw.get("mac")
+    if isinstance(mac, str) and re.match(r"^([0-9A-Fa-f]{2}[:-]?){5}[0-9A-Fa-f]{2}$", mac.strip()):
+        b["mac"] = mac.strip().upper()
     page = raw.get("page")
     if isinstance(page, int) and not isinstance(page, bool) and 1 <= page <= DECK_PAGES:
         b["page"] = page

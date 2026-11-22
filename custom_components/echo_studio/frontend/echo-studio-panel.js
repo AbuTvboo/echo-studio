@@ -41,7 +41,7 @@ const DECK_ACTIONS = [["", "Leer"], ["ha_toggle", "Home Assistant: an/aus"], ["h
   ["pc_run", "PC: Skript ausführen"], ["pc_power", "PC: Herunterfahren, Neustart, Ruhezustand, Sperren"], ["obs_scene", "OBS: Szene wechseln"], ["obs_stream", "OBS: Stream an/aus"],
   ["obs_record", "OBS: Aufnahme an/aus"], ["obs_mute", "OBS: Ton stumm/an"], ["obs_source", "OBS: Quelle zeigen/verbergen"]];
 const DECK_COLORS = ["#e53935", "#fb8c00", "#fdd835", "#43a047", "#00acc1", "#1e88e5", "#5e35b1", "#d81b60", "#6d4c41", "#546e7a", "#212121"];
-const DECK_POWER = [["shutdown", "Herunterfahren"], ["restart", "Neu starten"], ["sleep", "Ruhezustand"], ["lock", "Sperren"]];
+const DECK_POWER = [["menu", "Auswahl (Fenster)"], ["shutdown", "Herunterfahren"], ["restart", "Neu starten"], ["sleep", "Ruhezustand"], ["lock", "Sperren"]];
 const DECK_TOGGLE = ["light", "switch", "fan", "cover", "input_boolean", "media_player", "lock", "climate"];
 const DECK_RUN = ["scene", "script", "button", "input_button", "automation"];
 const DECK_NAMED = { blue: "#3d8be8", green: "#3fb96a", red: "#e5484d", orange: "#f08a2c", purple: "#9b6be0", gray: "#9a9a9a" };
@@ -1886,7 +1886,7 @@ class EchoStudioPanel extends HTMLElement {
       obs_mute: on ? "microphone-off" : "microphone", obs_source: on ? "eye" : "eye-off", pc_keys: "keyboard",
       pc_type: "form-textbox", pc_open: "open-in-app", pc_run: "script-text-play", page: "folder", wol: "power" };
     if (b.action === "ha_toggle" || b.action === "ha_run") return "mdi:" + (ha[dom] || "home-assistant");
-    if (b.action === "pc_power") return "mdi:" + ({ restart: "restart", sleep: "power-sleep", lock: "lock" }[b.value] || "power-standby");
+    if (b.action === "pc_power") return "mdi:" + ({ restart: "restart", sleep: "power-sleep", lock: "lock", menu: "power" }[b.value] || "power-standby");
     return own[b.action] ? "mdi:" + own[b.action] : "";
   }
 
@@ -1905,7 +1905,7 @@ class EchoStudioPanel extends HTMLElement {
       case "pc_type": return "Text";
       case "pc_open": case "pc_run": return b.value || "";
       case "wol": return b.computer || "Wake on LAN";
-      case "pc_power": return DECK_POWER.find(([k]) => k === (b.value || "shutdown"))?.[1] || "";
+      case "pc_power": return b.value === "menu" ? b.computer || "PC" : DECK_POWER.find(([k]) => k === (b.value || "shutdown"))?.[1] || "";
     }
     return "";
   }
@@ -2098,8 +2098,14 @@ class EchoStudioPanel extends HTMLElement {
         : `<input type="text" id="dkcomputer" value="${this._esc(b.computer || "")}" placeholder="Name des PCs">`}
         <label>Was die Taste tut</label>
         <div class="seg dkpower">${DECK_POWER.map(([k, t]) => `<button data-power="${k}" class="${(b.value || "shutdown") === k ? "on" : ""}">${t}</button>`).join("")}</div>
-        <div class="hint">Herunterfahren und Neu starten brauchen auf der Show einen zweiten Tipp, damit es nicht aus Versehen passiert.
-          Der PC braucht das Deck-Programm ab v1.30.5.</div>`;
+        ${(b.value || "shutdown") === "menu" ? `<div class="hint">Ein Tipp auf der Show öffnet ein Fenster: Einschalten, Neu starten, Herunterfahren,
+            Ruhezustand, Sperren. Für „Einschalten“ braucht es die MAC-Adresse:</div>
+          <label>MAC-Adresse (für Einschalten)</label>
+          <input type="text" id="dkmac" value="${this._esc(b.mac || "")}" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17" spellcheck="false">
+          ${this._deckMacs().length ? `<input type="search" id="dkmacq" placeholder="Gerät suchen …" value="${this._esc(this._deckMacQ || "")}">
+            <div class="dkapps" id="dkmacs">${this._deckMacsHtml(b.mac)}</div>` : ""}`
+        : `<div class="hint">Herunterfahren und Neu starten brauchen auf der Show einen zweiten Tipp, damit es nicht aus Versehen passiert.</div>`}
+        <div class="hint">Der PC braucht das Deck-Programm ab v1.30.5.</div>`;
     } else if (a.startsWith("pc_")) {
       const what = { pc_keys: ["Tasten", "ctrl+shift+m, media_play_pause, f13"], pc_type: ["Text", "Dieser Text wird getippt"],
         pc_open: ["App oder Webseite", "Unten antippen, oder https://youtube.com"], pc_run: ["Skript", "Name aus scripts.txt"] }[a];
@@ -2256,7 +2262,11 @@ class EchoStudioPanel extends HTMLElement {
       if (a) Object.assign(b, { action: a }, Object.fromEntries(Object.entries(keep).filter(([, v]) => v)));
       if (a === "page") b.page = Math.min(2, this._menu.deck.pages.length);
       if (a.startsWith("pc_") && this._deckInfo?.computers?.length) b.computer = this._deckInfo.computers[0];
-      if (a === "pc_power") b.value = "shutdown";
+      if (a === "pc_power") {
+        b.value = "menu";
+        const mac = this._deckInfo?.macs?.[b.computer]?.[0];
+        if (mac) b.mac = mac.toUpperCase();
+      }
       this._edited(true);
     });
     on("dkentity", "change", (e) => set({ entity: e.target.value.trim() }, true));
@@ -2266,6 +2276,7 @@ class EchoStudioPanel extends HTMLElement {
       const patch = { computer: pc };
       const mac = this._deckInfo?.macs?.[pc]?.[0]; // Wake on LAN: die Adresse, die das Deck-Programm meldet
       if (b.action === "wol" && mac && !b.value) patch.value = mac.toUpperCase();
+      if (b.action === "pc_power" && b.value === "menu" && mac && !b.mac) patch.mac = mac.toUpperCase();
       set(patch, true);
     });
     on("dkmacq", "input", (e) => {
@@ -2276,9 +2287,9 @@ class EchoStudioPanel extends HTMLElement {
     this._el("dkmacs")?.addEventListener("click", (e) => {
       const m = e.target.closest("button[data-mac]");
       if (!m) return;
-      const patch = { value: m.dataset.mac };
+      const patch = b.action === "pc_power" ? { mac: m.dataset.mac } : { value: m.dataset.mac };
       if (m.dataset.pc) patch.computer = m.dataset.pc;
-      if (!b.label && !m.dataset.pc) patch.label = m.dataset.name;
+      if (!b.label && !m.dataset.pc && b.action === "wol") patch.label = m.dataset.name;
       this._deckMacQ = "";
       set(patch, true);
     });
@@ -2309,6 +2320,7 @@ class EchoStudioPanel extends HTMLElement {
       s.addEventListener("click", () => set({ color: s.dataset.color }, true)));
     this._el("props")?.querySelectorAll(".dkpower button[data-power]").forEach((p) =>
       p.addEventListener("click", () => set({ value: p.dataset.power }, true)));
+    on("dkmac", "change", (e) => set({ mac: e.target.value.trim().toUpperCase() }));
     on("dkclear", "click", () => { for (const k of Object.keys(b)) delete b[k]; this._edited(true); });
     const holder = this._el("iconpicker");
     if (holder) {

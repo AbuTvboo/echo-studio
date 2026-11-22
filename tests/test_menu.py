@@ -127,3 +127,11 @@ def test_deck_info_keeps_only_names():
                     "apps": {}, "scripts": {}, "macs": {}}
     info = menu.clean_deck_info({"apps": {"PC": ["Firefox ESR", 5, ""], "": ["x"]}, "scripts": {"PC": "kein"}})
     assert info["apps"] == {"PC": ["Firefox ESR"]} and info["scripts"] == {}
+
+
+def test_deck_power_menu_keeps_its_mac():
+    got = menu.clean_menu({"deck": {"pages": [{"buttons": [
+        {"action": "pc_power", "computer": "PC", "value": "menu", "mac": "aa:bb:cc:00:11:22"},
+        {"action": "pc_power", "value": "menu", "mac": "kaputt"}]}]}})
+    b = got["deck"]["pages"][0]["buttons"]
+    assert b[0]["mac"] == "AA:BB:CC:00:11:22" and "mac" not in b[1]
