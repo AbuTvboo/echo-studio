@@ -91,3 +91,36 @@ def test_radio_favorite_adds_once_and_removes():
     assert [f["name"] for f in m["radio"]["favorites"]] == ["wdr 2"]
     with pytest.raises(menu.MenuError):
         menu.radio_favorite(m, {"name": "x", "url": "nope"}, True)
+
+
+def test_deck_is_kept_and_cleaned():
+    got = menu.clean_menu({"deck": {"cols": 12, "rows": 0, "pages": [
+        {"name": " Wohnzimmer ", "buttons": [
+            {"action": "ha_toggle", "entity": "light.eck", "icon": "mdi:lamp", "color": "#FB8C00", "label": "Eck"},
+            {},
+            {"action": "page", "page": 2},
+            {"action": "pc_keys", "computer": "PC", "value": "ctrl+shift+m"},
+            {"action": "rm -rf"},
+            {"action": "ha_run", "entity": "nicht gültig"},
+            {},
+        ]}]}})
+    deck = got["deck"]
+    assert deck["cols"] == 8 and deck["rows"] == 1
+    page = deck["pages"][0]
+    assert page["name"] == "Wohnzimmer"
+    assert page["buttons"][0] == {"action": "ha_toggle", "entity": "light.eck", "icon": "lamp", "color": "#fb8c00", "label": "Eck"}
+    assert page["buttons"][1] == {}
+    assert page["buttons"][2] == {"action": "page", "page": 2}
+    assert page["buttons"][4] == {}  # unbekannte Aktion
+    assert page["buttons"][5] == {"action": "ha_run"}  # ohne gültige Entität
+    assert len(page["buttons"]) == 6  # leere Felder am Ende fallen weg
+
+
+def test_no_deck_stays_absent():
+    assert "deck" not in menu.clean_menu({})
+    assert "deck" not in menu.clean_menu({"deck": None})
+
+
+def test_deck_info_keeps_only_names():
+    info = menu.clean_deck_info({"computers": ["PC", 3, ""], "obs_scenes": ["Szene"], "key": "geheim", "obs_connected": True})
+    assert info == {"computers": ["PC"], "obs_scenes": ["Szene"], "obs_inputs": [], "obs_connected": True}

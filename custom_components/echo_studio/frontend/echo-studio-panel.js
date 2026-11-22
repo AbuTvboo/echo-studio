@@ -35,6 +35,15 @@ const PREVIEW_DELAY = 400;      // Zustandsänderungen sammeln, bevor die Vorsch
 const MENU_TABS = [["light", "Licht"], ["music", "Musik"], ["radio", "Radio"], ["tv", "TV"], ["football", "Fußball"],
   ["cameras", "Kameras"], ["scenes", "Szenen"], ["announce", "Ansagen"], ["call", "Anrufen"], ["todo", "To-do"]];
 const MENU_DOMAINS = { light: ["light", "switch"], scenes: ["scene", "script"] };
+// Das Deck (Hilal OS): was eine Taste tun kann, wie config.DeckActions der Show.
+const DECK_ACTIONS = [["", "Leer"], ["ha_toggle", "Home Assistant: an/aus"], ["ha_run", "Home Assistant: ausführen (Szene, Skript, Taste)"],
+  ["page", "Seite öffnen (Ordner)"], ["pc_keys", "PC: Tastenkürzel"], ["pc_type", "PC: Text tippen"], ["pc_open", "PC: App oder Webseite öffnen"],
+  ["pc_run", "PC: Skript ausführen"], ["obs_scene", "OBS: Szene wechseln"], ["obs_stream", "OBS: Stream an/aus"],
+  ["obs_record", "OBS: Aufnahme an/aus"], ["obs_mute", "OBS: Ton stumm/an"], ["obs_source", "OBS: Quelle zeigen/verbergen"]];
+const DECK_COLORS = ["#e53935", "#fb8c00", "#fdd835", "#43a047", "#00acc1", "#1e88e5", "#5e35b1", "#d81b60", "#6d4c41", "#546e7a", "#212121"];
+const DECK_TOGGLE = ["light", "switch", "fan", "cover", "input_boolean", "media_player", "lock", "climate"];
+const DECK_RUN = ["scene", "script", "button", "input_button", "automation"];
+const DECK_NAMED = { blue: "#3d8be8", green: "#3fb96a", red: "#e5484d", orange: "#f08a2c", purple: "#9b6be0", gray: "#9a9a9a" };
 const MENU_THEMES = [["", "Automatisch (wie die Startseite)"], ["start", "Startseite"], ["show", "Design der Echo Show"],
   ["blue", "Blau"], ["midnight", "Mitternacht"], ["emerald", "Smaragd"], ["aubergine", "Aubergine"], ["bordeaux", "Bordeaux"],
   ["sunset", "Sonnenuntergang"], ["graphite", "Graphit"], ["ocean", "Ozean"]];
@@ -180,6 +189,38 @@ input[type=search], input[type=text], input[type=password], select { width:100%;
   line-height:1.2; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; pointer-events:none; }
 .mtile.sel { outline:3px solid #fff; outline-offset:2px; }
 .mtile.drop, .mhead.drop { box-shadow:calc(var(--u)*-6) 0 0 0 #fff; }
+/* Das Deck: wie drawer_ottoman_deck.go, dunkel wie Macro Deck */
+.dkscreen { --u:0.10417cqw; aspect-ratio:16/10; overflow:hidden; display:flex; flex-direction:column; padding:calc(var(--u)*15);
+  background:#171719; color:#f4f4f6; font-family:var(--paper-font-body1_-_font-family, Roboto, sans-serif); }
+.dkgrid { flex:1; min-height:0; display:grid; gap:calc(var(--u)*10); justify-content:center; align-content:center; }
+.dkkey { position:relative; width:var(--k); height:var(--k); border-radius:14%; cursor:grab; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:calc(var(--k)*0.04); --c:#2b2b2f;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--c) 88%, #fff), color-mix(in srgb, var(--c) 92%, #000));
+  border:1px solid color-mix(in srgb, var(--c) 78%, #fff); box-shadow:0 calc(var(--u)*3) calc(var(--u)*8) rgba(0,0,0,.45); }
+.dkkey.lit { box-shadow:0 0 calc(var(--u)*16) color-mix(in srgb, var(--c) 70%, transparent); border-color:color-mix(in srgb, var(--c) 45%, #fff); }
+.dkkey.empty { background:#1f1f22; border:1px solid #3a3a40; box-shadow:none; }
+.dkkey ha-icon { --mdc-icon-size:calc(var(--k)*0.44); color:#f4f4f6; pointer-events:none; }
+.dkkey .l { max-width:88%; font-size:calc(var(--k)*0.13); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  text-shadow:0 1px 2px rgba(0,0,0,.6); pointer-events:none; }
+.dkkey .fold { position:absolute; right:calc(var(--k)*0.08); top:calc(var(--k)*0.02); font-size:calc(var(--k)*0.16); opacity:.7; pointer-events:none; }
+.dkkey.sel { outline:3px solid #4f8cff; outline-offset:3px; }
+.dkkey.drop { outline:3px dashed #fff; outline-offset:3px; }
+.dkkey.dragging { opacity:.4; }
+.dkbar { flex:none; height:calc(var(--u)*48); position:relative; display:flex; align-items:center; justify-content:center; }
+.dkt { text-align:center; font-weight:700; font-size:calc(var(--u)*18); }
+.dkdots { display:flex; gap:calc(var(--u)*8); justify-content:center; margin-top:calc(var(--u)*5); }
+.dkdots i { width:calc(var(--u)*7); height:calc(var(--u)*7); border-radius:50%; background:#3a3a40; }
+.dkdots i.on { background:#f4f4f6; }
+.dkarrows { position:absolute; right:0; display:flex; gap:calc(var(--u)*9); }
+.dkarrows span { width:calc(var(--u)*36); height:calc(var(--u)*36); border-radius:50%; background:#33333a; display:flex; align-items:center;
+  justify-content:center; font-size:calc(var(--u)*24); cursor:pointer; user-select:none; }
+.dkgridset { gap:8px; align-items:center; }
+.dkpage button[data-act="go"].on { background:#4f8cff; color:#fff; }
+.dkadd button { margin-left:auto; min-width:34px; font-size:18px; }
+.dkswatch { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.dkswatch button { width:30px; height:30px; padding:0; border-radius:8px; background:var(--c); border:2px solid transparent; color:#fff; }
+.dkswatch button.on { border-color:#fff; outline:2px solid #4f8cff; }
+.dkswatch input[type=color] { width:38px; height:32px; padding:0; border:none; background:none; }
 /* Das Radio: wie screen_ottoman_radio_draw.go, in den Farben der Startseite */
 .rpage { --u:0.10417cqw; aspect-ratio:16/10; overflow:hidden; display:flex; flex-direction:column; gap:calc(var(--u)*14);
   padding:calc(var(--u)*14) calc(var(--u)*16); color:#f1f4f7; background:linear-gradient(180deg, #132233, #0a1521);
@@ -315,6 +356,9 @@ class EchoStudioPanel extends HTMLElement {
     this._menuDirty = false;
     this._part = "light";     // im Menü: "light", "scenes", "radio", "tabs", "look"
     this._radioAsk = 0;       // zählt die Suchen in Radio Browser (nur die letzte zählt)
+    this._deckPage = 0;       // im Deck: die offene Seite
+    this._deckInfo = null;    // die PCs und OBS' Szenen, wie die Show sie sagt
+    this._deckNew = false;    // ein Deck, das hier nur angelegt, aber nie geändert wurde: nicht speichern
   }
 
   set hass(hass) {
@@ -354,7 +398,8 @@ class EchoStudioPanel extends HTMLElement {
         const m = await ws({ type: "echo_studio/menu/get" });
         this._menu = { tabs: (m.tabs || []).map((t) => ({ ...t })), light: (m.light || []).map((i) => ({ ...i })),
           scenes: (m.scenes || []).map((i) => ({ ...i })), look: { theme: m.look?.theme || "", columns: m.look?.columns || 0 },
-          radio: this._radioFrom(m.radio) };
+          radio: this._radioFrom(m.radio), deck: this._deckFrom(m.deck) };
+        try { this._deckInfo = await ws({ type: "echo_studio/deck/info" }); } catch (_) { this._deckInfo = null; }
         this._radioKnown = !!m.radio; // ein Echo Studio, das das Radio schon kennt
         this._menuOK = true;
         this._followMenu();
@@ -493,8 +538,17 @@ class EchoStudioPanel extends HTMLElement {
         this._dirty = false;
       }
       if (this._menuDirty && this._menu) {
-        const saved = await this._hass.callWS({ type: "echo_studio/menu/save", menu: { version: 1, ...this._menu } });
-        this._menu = { tabs: saved.tabs, light: saved.light, scenes: saved.scenes, look: saved.look, radio: this._radioFrom(saved.radio) };
+        const menu = { version: 1, ...this._menu };
+        if (!menu.deck || this._deckNew) delete menu.deck; // ein nur angesehenes Deck überschreibt nicht das der Show
+        else menu.deck = { ...menu.deck, pages: menu.deck.pages.map((p) => {
+          const buttons = p.buttons.map((b) => ({ ...b }));
+          while (buttons.length && !buttons[buttons.length - 1].action) buttons.pop();
+          return { ...p, buttons };
+        }) };
+        const saved = await this._hass.callWS({ type: "echo_studio/menu/save", menu });
+        const keepNew = this._deckNew ? this._menu.deck : null;
+        this._menu = { tabs: saved.tabs, light: saved.light, scenes: saved.scenes, look: saved.look, radio: this._radioFrom(saved.radio),
+          deck: this._deckFrom(saved.deck) || keepNew };
         if (this._mode === "menu") this._useList();
         this._menuDirty = false;
       }
@@ -528,6 +582,7 @@ class EchoStudioPanel extends HTMLElement {
   // Nach einer Änderung an der Gestaltung: Kopfzeile und Vorschau, und wenn gewünscht die Eigenschaften.
   _edited(props = true) {
     if (this._mode === "menu") this._menuDirty = true; else this._dirty = true;
+    if (this._mode === "menu" && this._part === "deck") this._deckNew = false;
     this._renderTop();
     this._renderPreview();
     if (props) this._renderProps();
@@ -535,13 +590,21 @@ class EchoStudioPanel extends HTMLElement {
 
   _move(from, to) {
     if (from === to || from < 0 || to < 0 || from >= this._items.length) return false;
+    if (this._mode === "menu" && this._part === "deck") { // im Deck tauschen zwei Felder
+      if (to >= this._items.length) return false;
+      [this._items[from], this._items[to]] = [this._items[to], this._items[from]];
+      return true;
+    }
     const [it] = this._items.splice(from, 1);
     this._items.splice(to > from ? to - 1 : to, 0, it);
     return true;
   }
 
   // Wählt die Karte oder Überschrift it, nachdem sie sich bewegt hat (ihr Index ist ein anderer).
-  _select(it) { this._selected = it.heading !== undefined || !it.entity ? "#" + this._items.indexOf(it) : it.entity; }
+  _select(it) {
+    if (this._mode === "menu" && this._part === "deck") { this._selected = "#" + this._items.indexOf(it); return; }
+    this._selected = it.heading !== undefined || !it.entity ? "#" + this._items.indexOf(it) : it.entity;
+  }
 
   // Ein Symbol, das nicht aus mdi kommt (etwa m3of: aus Material Symbols): die Echo Show kennt nur mdi.
   _foreign(icon) { return !!icon && !icon.startsWith("mdi:"); }
@@ -1308,13 +1371,14 @@ class EchoStudioPanel extends HTMLElement {
   // this._items auf die Liste, die gerade bearbeitet wird.
   _useList() {
     if (this._mode !== "menu") { this._items = this._cards; return; }
+    if (this._part === "deck") { this._items = this._deckButtons(); return; }
     this._items = this._part === "scenes" ? this._menu.scenes : this._part === "radio" ? this._menu.radio.favorites : this._menu.light;
   }
 
   _isList() { return this._part === "light" || this._part === "scenes"; }
 
   _menuMainHtml() {
-    const parts = [["light", "Licht"], ["scenes", "Szenen"], ["radio", "Radio"], ["tabs", "Reiter"], ["look", "Aussehen"]];
+    const parts = [["light", "Licht"], ["scenes", "Szenen"], ["radio", "Radio"], ["deck", "Deck"], ["tabs", "Reiter"], ["look", "Aussehen"]];
     return `<div class="main">
       <div class="pane" id="devpane"><h2>Menü der Echo Show</h2>
         <div class="seg mparts" id="mparts">${parts.map(([k, t]) => `<button data-part="${k}" class="${this._part === k ? "on" : ""}">${t}</button>`).join("")}</div>
@@ -1323,11 +1387,13 @@ class EchoStudioPanel extends HTMLElement {
         ${this._isList() && this._suggested?.[this._part] && !this._menuDirty ? `<p class="hint" style="margin:0 4px 10px">Das zeigt die Echo Show
           gerade (alle Geräte mit dem Label „echo“). Sortiere, ergänze Überschriften oder Farben und tippe auf „Speichern“, dann
           gilt es als eigene Liste.</p>` : ""}
-        <div class="screen"><div class="${this._part === "radio" ? "rpage" : "mscreen"}" id="grid"></div></div>
+        <div class="screen"><div class="${this._part === "radio" ? "rpage" : this._part === "deck" ? "dkscreen" : "mscreen"}" id="grid"></div></div>
         <div class="actions">${this._isList() ? `<button id="addheading">+ Überschrift</button>
           <button id="byroom" title="Ordnet die Kacheln nach ihren Räumen in Home Assistant, mit dem Raum als Überschrift">Nach Räumen trennen</button>` : ""}
         <span class="hint">${this._isList()
           ? "Kacheln ziehen zum Sortieren, antippen zum Gestalten. Ist die Liste leer, zeigt die Echo Show wie bisher alle Geräte mit dem Label „echo“."
+          : this._part === "deck"
+          ? "Tasten antippen zum Gestalten, ziehen zum Tauschen. Nach „Speichern“ übernimmt die Echo Show das Deck gleich; was du dort änderst, erscheint hier von selbst."
           : this._part === "radio"
           ? "Favoriten ziehen zum Sortieren, antippen zum Bearbeiten. Auf der Show kommt ein Sender mit langem Druck oder dem Herz im Player dazu; das erscheint hier von selbst."
           : "So sieht das Menü auf der Echo Show aus. Nach „Speichern“ übernimmt sie es gleich."}</span></div></div>
@@ -1349,6 +1415,7 @@ class EchoStudioPanel extends HTMLElement {
         <p class="hint">Reiter, die die Echo Show gerade nicht anbietet (etwa To-do ohne Listen), erscheinen dort nicht.</p>`;
     }
     if (this._part === "radio") return this._radioLeftHtml();
+    if (this._part === "deck") return this._deckLeftHtml();
     if (this._part === "look") {
       const look = this._menu.look;
       return `<label class="hint">Farbthema</label>
@@ -1370,6 +1437,7 @@ class EchoStudioPanel extends HTMLElement {
   }
 
   _menuDevicesHtml() {
+    if (this._part === "deck") return this._deckDevicesHtml();
     if (!this._isList()) return "";
     const allowed = MENU_DOMAINS[this._part];
     const text = this._filter.text.toLowerCase();
@@ -1398,6 +1466,7 @@ class EchoStudioPanel extends HTMLElement {
   // und Aussehen die von Licht), in den Farben des gewählten Themas.
   _menuPreviewHtml() {
     if (this._part === "radio") return this._radioPreviewHtml();
+    if (this._part === "deck") return this._deckPreviewHtml();
     const look = this._menu.look;
     const [ground, accent, soft, rules] = MENU_COLORS[look.theme || "start"] || MENU_COLORS.start;
     const tabs = this._menuTabsList().filter((t) => t.show !== false);
@@ -1441,6 +1510,7 @@ class EchoStudioPanel extends HTMLElement {
 
   _menuPropsHtml() {
     if (this._part === "radio") return this._radioPropsHtml();
+    if (this._part === "deck") return this._deckPropsHtml();
     if (!this._isList()) {
       return this._part === "tabs"
         ? `<h2>Reiter</h2><p class="hint">Links stellst du ein, welche Reiter das Menü zeigt, in welcher Reihenfolge und unter welchem Namen. Auf der Show gedrückt halten und Ziehen ordnet sie dort nur bis zum nächsten Speichern hier.</p>`
@@ -1486,7 +1556,12 @@ class EchoStudioPanel extends HTMLElement {
         try {
           const m = await this._hass.callWS({ type: "echo_studio/menu/get" });
           this._menu.radio = this._radioFrom(m.radio);
-          if (this._mode === "menu") { this._useList(); this._renderPreview(); this._renderProps(); this._radioRenderResults(); }
+          if (m.deck) { this._menu.deck = this._deckFrom(m.deck); this._deckNew = false; } // auf der Show geändert
+          try { this._deckInfo = await this._hass.callWS({ type: "echo_studio/deck/info" }); } catch (_) { /* wie vorher */ }
+          if (this._mode === "menu") {
+            this._useList(); this._renderPreview(); this._renderProps(); this._radioRenderResults();
+            if (this._part === "deck") this._renderMenuLeft();
+          }
         } catch (_) { /* beim nächsten Mal */ }
       }, "echo_studio_menu_updated");
     } catch (_) { /* ohne: nur ein Neuladen zeigt, was die Show eingetragen hat */ }
@@ -1739,6 +1814,339 @@ class EchoStudioPanel extends HTMLElement {
     on("rgnew", "keydown", (e) => { if (e.key === "Enter") add(); });
   }
 
+  // --- Deck (Hilal OS, drawer_ottoman_deck.go) -----------------------------------------------------
+  //
+  // Der Reiter „Deck“ der Echo Show, wie Macro Deck: Seiten mit einem Raster aus Tasten. Eine Taste
+  // schaltet ein Gerät, startet eine Szene oder ein Skript, öffnet eine andere Seite (Ordner), drückt
+  // Tasten am PC (Deck-Programm) oder steuert OBS. Auf der Show lässt ein langer Druck umbenennen,
+  // umfärben und verschieben; das kommt hierher zurück. OBS und die PCs mit ihren Schlüsseln bleiben
+  // auf der Show; sie sagt nur ihre Namen (echo_studio/deck/info).
+
+  _deckFrom(d) {
+    if (!d) return null;
+    return { cols: d.cols || 5, rows: d.rows || 3,
+      pages: (d.pages || []).map((p) => ({ name: p.name || "", buttons: (p.buttons || []).map((b) => ({ ...b })) })) };
+  }
+
+  _deckEnsure() {
+    if (!this._menu.deck) {
+      this._menu.deck = { cols: 5, rows: 3, pages: [{ name: "Seite 1", buttons: [] }] };
+      this._deckNew = true; // erst eine Änderung macht es zu einem Deck, das gespeichert wird
+    }
+    const d = this._menu.deck;
+    if (!d.pages.length) d.pages.push({ name: "Seite 1", buttons: [] });
+    this._deckPage = Math.min(Math.max(this._deckPage || 0, 0), d.pages.length - 1);
+    return d;
+  }
+
+  // Die Tasten der offenen Seite, auf das Raster aufgefüllt.
+  _deckButtons() {
+    const d = this._deckEnsure();
+    const page = d.pages[this._deckPage];
+    while (page.buttons.length < d.cols * d.rows) page.buttons.push({});
+    return page.buttons;
+  }
+
+  _deckPageName(i) {
+    const p = this._menu.deck?.pages[i];
+    return (p && p.name) || `Seite ${i + 1}`;
+  }
+
+  _deckOn(b) {
+    if (b.action !== "ha_toggle" || !b.entity) return false;
+    const s = this._hass.states[b.entity]?.state;
+    return ["on", "open", "opening", "playing", "unlocked", "home", "heat", "cool", "heat_cool", "auto", "dry", "fan_only"].includes(s);
+  }
+
+  _deckColor(c) {
+    if (!c) return "";
+    return c.startsWith("#") ? c : DECK_NAMED[c] || "";
+  }
+
+  // Das Symbol, wie deck.Icon es auf der Show wählt.
+  _deckIcon(b, on) {
+    if (b.icon) return "mdi:" + b.icon;
+    const dom = (b.entity || "").split(".")[0];
+    const ha = { light: on ? "lightbulb-on" : "lightbulb-outline", switch: on ? "toggle-switch" : "toggle-switch-off-outline",
+      input_boolean: on ? "toggle-switch" : "toggle-switch-off-outline", fan: on ? "fan" : "fan-off",
+      cover: on ? "window-shutter-open" : "window-shutter", media_player: "play-pause", scene: "palette",
+      script: "script-text-play", automation: "robot", button: "gesture-tap-button", input_button: "gesture-tap-button",
+      lock: on ? "lock-open-variant" : "lock", climate: "thermostat" };
+    const own = { obs_scene: "monitor", obs_stream: on ? "access-point" : "access-point-off", obs_record: on ? "record-rec" : "record",
+      obs_mute: on ? "microphone-off" : "microphone", obs_source: on ? "eye" : "eye-off", pc_keys: "keyboard",
+      pc_type: "form-textbox", pc_open: "open-in-app", pc_run: "script-text-play", page: "folder" };
+    if (b.action === "ha_toggle" || b.action === "ha_run") return "mdi:" + (ha[dom] || "home-assistant");
+    return own[b.action] ? "mdi:" + own[b.action] : "";
+  }
+
+  // Die Beschriftung, wie die Show sie zeigt.
+  _deckLabel(b) {
+    if (b.label) return b.label;
+    switch (b.action) {
+      case "ha_toggle": case "ha_run": return b.entity ? this._friendly(b.entity) : "";
+      case "page": return b.page ? this._deckPageName(b.page - 1) : "";
+      case "obs_scene": return b.scene || "";
+      case "obs_stream": return "Stream";
+      case "obs_record": return "Record";
+      case "obs_mute": return b.input || "";
+      case "obs_source": return b.source || "";
+      case "pc_keys": return (b.value || "").toUpperCase();
+      case "pc_type": return "Text";
+      case "pc_open": case "pc_run": return b.value || "";
+    }
+    return "";
+  }
+
+  _deckLeftHtml() {
+    const d = this._deckEnsure();
+    const info = this._deckInfo || {};
+    const opts = (from, to, v) => Array.from({ length: to - from + 1 }, (_, i) => from + i)
+      .map((n) => `<option value="${n}" ${n === v ? "selected" : ""}>${n}</option>`).join("");
+    const pcs = (info.computers || []).length ? info.computers.map((c) => this._esc(c)).join(", ") : "keiner gekoppelt";
+    const obs = info.obs_connected ? `verbunden, ${(info.obs_scenes || []).length} Szenen` : "nicht verbunden";
+    return `<label class="hint">Raster (Spalten × Zeilen)</label>
+      <div class="row dkgridset"><select id="dkcols">${opts(2, 8, d.cols)}</select><span>×</span><select id="dkrows">${opts(1, 5, d.rows)}</select></div>
+      <label class="hint" style="display:block;margin-top:14px">Seiten</label>
+      ${d.pages.map((p, i) => `<div class="mtabrow dkpage" data-p="${i}">
+        <button data-act="go" class="${i === this._deckPage ? "on" : ""}" title="Zeigen">${i + 1}</button>
+        <input type="text" data-act="name" placeholder="Seite ${i + 1}" value="${this._esc(p.name)}" maxlength="40">
+        <button data-act="up" ${i === 0 ? "disabled" : ""} title="Nach vorne">▲</button>
+        <button data-act="down" ${i === d.pages.length - 1 ? "disabled" : ""} title="Nach hinten">▼</button>
+        <button data-act="del" ${d.pages.length < 2 ? "disabled" : ""} title="Seite löschen">✕</button></div>`).join("")}
+      <div class="actions" style="margin-top:8px"><button id="dkaddpage" ${d.pages.length >= 10 ? "disabled" : ""}>+ Seite</button></div>
+      <p class="hint">PCs: ${pcs} · OBS: ${obs}. Gekoppelt und eingerichtet werden sie auf der Einrichtungsseite der Show (Deck).</p>
+      <label class="hint" style="display:block;margin-top:10px">Gerät als Taste hinzufügen</label>
+      <input type="search" id="q" placeholder="Lampe, Szene, Skript … suchen" value="${this._esc(this._filter.text)}">`;
+  }
+
+  _deckDevicesHtml() {
+    const text = this._filter.text.toLowerCase();
+    const rows = [];
+    for (const e of this._registry) {
+      const dom = e.ei.split(".")[0];
+      if (!DECK_TOGGLE.includes(dom) && !DECK_RUN.includes(dom)) continue;
+      if (e.hb || e.ec != null) continue;
+      const name = this._friendly(e.ei);
+      if (text && !(name.toLowerCase().includes(text) || e.ei.includes(text))) continue;
+      rows.push({ e, name, area: this._areaOf(e) || "Ohne Raum" });
+    }
+    rows.sort((a, b) => (a.area === "Ohne Raum") - (b.area === "Ohne Raum") || a.area.localeCompare(b.area) || a.name.localeCompare(b.name));
+    let html = "", group = null;
+    for (const { e, name, area } of rows.slice(0, MAX_ROWS)) {
+      if (area !== group) { html += `<div class="group">${this._esc(area)}</div>`; group = area; }
+      html += `<div class="dev dkadd" data-entity="${e.ei}"><ha-icon icon="${this._esc(this._defaultIcon(e.ei))}"></ha-icon>
+        <span class="n"><div>${this._esc(name)}</div><small>${e.ei}</small></span><button data-add="${e.ei}" title="Als Taste auf diese Seite">+</button></div>`;
+    }
+    return html || `<p class="hint">Nichts gefunden.</p>`;
+  }
+
+  // Die Vorschau, wie drawer_ottoman_deck.go den Reiter zeichnet.
+  _deckPreviewHtml() {
+    const d = this._deckEnsure();
+    const buttons = this._deckButtons();
+    const n = d.cols * d.rows;
+    const side = Math.floor(Math.min((930 - (d.cols - 1) * 10) / d.cols, (516 - (d.rows - 1) * 10) / d.rows)); // in 960 × 600
+    const keys = buttons.slice(0, n).map((b, i) => {
+      const sel = this._selected === "#" + i ? "sel" : "";
+      if (!b.action) return `<div class="dkkey empty ${sel}" draggable="true" data-idx="${i}" data-sel="#${i}"></div>`;
+      const on = this._deckOn(b);
+      const own = this._deckColor(b.color);
+      const stateful = ["ha_toggle", "obs_scene", "obs_stream", "obs_record", "obs_mute", "obs_source"].includes(b.action);
+      let fill = "#2b2b2f";
+      if (on) fill = own || "#2eb85c";
+      else if (own) fill = stateful ? `color-mix(in srgb, ${own} 38%, #2b2b2f)` : own;
+      const icon = this._deckIcon(b, on);
+      return `<div class="dkkey ${on ? "lit" : ""} ${sel}" draggable="true" data-idx="${i}" data-sel="#${i}" style="--c:${fill}">
+        ${icon ? `<ha-icon icon="${this._esc(icon)}"></ha-icon>` : ""}<div class="l">${this._esc(this._deckLabel(b))}</div>
+        ${b.action === "page" ? `<span class="fold">›</span>` : ""}</div>`;
+    }).join("");
+    const dots = d.pages.length > 1 ? `<div class="dkdots">${d.pages.map((_, i) => `<i class="${i === this._deckPage ? "on" : ""}"></i>`).join("")}</div>` : "";
+    const arrows = d.pages.length > 1 ? `<div class="dkarrows"><span data-dpage="prev">‹</span><span data-dpage="next">›</span></div>` : "";
+    return `<div class="dkgrid" style="--k:calc(var(--u)*${side});grid-template-columns:repeat(${d.cols},var(--k))">${keys}</div>
+      <div class="dkbar"><div class="dkt">${this._esc(this._deckPageName(this._deckPage))}${dots}</div>${arrows}</div>`;
+  }
+
+  _deckPropsHtml() {
+    const b = this._item(this._selected);
+    if (!b) {
+      return `<h2>Deck</h2><p class="hint">Tippe in der Vorschau auf ein Feld, um eine Taste anzulegen oder zu gestalten. Tasten ziehen
+        tauscht sie. Links fügst du Geräte mit + hinzu, legst Seiten an und stellst das Raster ein.</p>
+        <p class="hint">Eine Taste „Seite öffnen“ wirkt wie ein Ordner: auf der Show führt „Zurück“ wieder heraus. Auf der Show
+        öffnet ein langer Druck auf eine Taste Umbenennen, Farbe, Verschieben und Leeren.</p>`;
+    }
+    const idx = this._items.indexOf(b);
+    const a = b.action || "";
+    const info = this._deckInfo || {};
+    const list = (id, vals) => `<datalist id="${id}">${(vals || []).map((v) => `<option value="${this._esc(v)}">`).join("")}</datalist>`;
+    let fields = "";
+    if (a === "ha_toggle" || a === "ha_run") {
+      const doms = a === "ha_toggle" ? DECK_TOGGLE : DECK_RUN;
+      const ents = this._registry.filter((e) => doms.includes(e.ei.split(".")[0]) && !e.hb).map((e) => e.ei).sort();
+      fields = `<label>Gerät (${a === "ha_toggle" ? "Lampe, Schalter …" : "Szene, Skript, Taste, Automation"})</label>
+        <input type="text" id="dkentity" list="dkents" value="${this._esc(b.entity || "")}" placeholder="light.wohnzimmer">${list("dkents", ents)}
+        ${b.entity ? `<div class="hint">${this._esc(this._friendly(b.entity))}</div>` : ""}`;
+    } else if (a === "page") {
+      fields = `<label>Öffnet</label><select id="dkpagego">${this._menu.deck.pages.map((_, i) =>
+        `<option value="${i + 1}" ${b.page === i + 1 ? "selected" : ""}>${this._esc(this._deckPageName(i))}</option>`).join("")}</select>`;
+    } else if (a.startsWith("pc_")) {
+      const what = { pc_keys: ["Tasten", "ctrl+shift+m, media_play_pause, f13"], pc_type: ["Text", "Dieser Text wird getippt"],
+        pc_open: ["App oder Webseite", "https://youtube.com oder notepad"], pc_run: ["Skript", "C:\\Skripte\\start.bat"] }[a];
+      fields = `<label>PC</label><input type="text" id="dkcomputer" list="dkpcs" value="${this._esc(b.computer || "")}"
+          placeholder="${this._esc((info.computers || [])[0] || "Name des PCs")}">${list("dkpcs", info.computers)}
+        <label>${what[0]}</label>${a === "pc_type"
+          ? `<textarea id="dkvalue" rows="3" placeholder="${this._esc(what[1])}">${this._esc(b.value || "")}</textarea>
+             <div class="hint">Steht in Home Assistant lesbar: keine Passwörter.</div>`
+          : `<input type="text" id="dkvalue" value="${this._esc(b.value || "")}" placeholder="${this._esc(what[1])}">`}`;
+    } else if (a === "obs_scene" || a === "obs_source") {
+      fields = `<label>Szene</label><input type="text" id="dkscene" list="dkscenes" value="${this._esc(b.scene || "")}">${list("dkscenes", info.obs_scenes)}`;
+      if (a === "obs_source") fields += `<label>Quelle</label><input type="text" id="dksource" value="${this._esc(b.source || "")}">`;
+    } else if (a === "obs_mute") {
+      fields = `<label>Eingang</label><input type="text" id="dkinput" list="dkinputs" value="${this._esc(b.input || "")}"
+        placeholder="Mikrofon, Desktop-Audio">${list("dkinputs", info.obs_inputs)}`;
+    }
+    const color = this._deckColor(b.color);
+    return `<h2>Taste ${idx + 1} <small class="hint">${this._esc(this._deckPageName(this._deckPage))}</small></h2>
+      <label>Aktion</label><select id="dkaction">${DECK_ACTIONS.map(([k, t]) => `<option value="${k}" ${a === k ? "selected" : ""}>${t}</option>`).join("")}</select>
+      ${fields}
+      ${a ? `<label>Beschriftung</label><input type="text" id="dklabel" maxlength="40" placeholder="${this._esc(this._deckLabel({ ...b, label: "" }))}" value="${this._esc(b.label || "")}">
+      <label>Symbol (aus mdi)</label><div id="iconpicker"></div>
+      <label>Farbe</label><div class="dkswatch">${["", ...DECK_COLORS].map((c) =>
+        `<button data-color="${c}" class="${(b.color || "") === c ? "on" : ""}" style="--c:${c || "#2b2b2f"}" title="${c || "Standard"}">${c ? "" : "∅"}</button>`).join("")}
+        <input type="color" id="dkcolor" value="${color || "#2b2b2f"}" title="Eigene Farbe"></div>
+      <div class="actions"><button id="dkclear">Taste leeren</button></div>` : ""}`;
+  }
+
+  _wireDeckLeft(left) {
+    const d = this._deckEnsure();
+    let typing = null;
+    left.addEventListener("input", (e) => {
+      if (e.target.id !== "q") return;
+      this._filter.text = e.target.value;
+      clearTimeout(typing);
+      typing = setTimeout(() => this._renderDeviceList(), 150);
+    });
+    left.addEventListener("change", (e) => {
+      if (e.target.id === "dkcols" || e.target.id === "dkrows") {
+        d[e.target.id === "dkcols" ? "cols" : "rows"] = Number(e.target.value);
+        this._selected = null;
+        this._useList();
+        this._edited();
+        return;
+      }
+      const row = e.target.closest(".dkpage");
+      if (row && e.target.dataset.act === "name") {
+        d.pages[Number(row.dataset.p)].name = e.target.value.trim();
+        this._edited();
+      }
+    });
+    left.addEventListener("click", (e) => {
+      if (e.target.id === "dkaddpage") {
+        if (d.pages.length >= 10) return;
+        d.pages.push({ name: "", buttons: [] });
+        this._deckGo(d.pages.length - 1);
+        this._edited();
+        return;
+      }
+      const b = e.target.closest(".dkpage button[data-act]");
+      if (!b) return;
+      const i = Number(b.closest(".dkpage").dataset.p);
+      const act = b.dataset.act;
+      if (act === "go") { this._deckGo(i); return; }
+      if (act === "del") {
+        if (d.pages.length < 2 || !confirm(`„${this._deckPageName(i)}“ mit ihren Tasten löschen?`)) return;
+        d.pages.splice(i, 1);
+        for (const p of d.pages) for (const k of p.buttons) {
+          if (k.action === "page" && k.page) { if (k.page === i + 1) delete k.page; else if (k.page > i + 1) k.page--; }
+        }
+        this._deckGo(Math.min(this._deckPage, d.pages.length - 1));
+        this._edited();
+        return;
+      }
+      const j = act === "up" ? i - 1 : i + 1;
+      if (j < 0 || j >= d.pages.length) return;
+      [d.pages[i], d.pages[j]] = [d.pages[j], d.pages[i]];
+      for (const p of d.pages) for (const k of p.buttons) {
+        if (k.action === "page") { if (k.page === i + 1) k.page = j + 1; else if (k.page === j + 1) k.page = i + 1; }
+      }
+      if (this._deckPage === i) this._deckPage = j; else if (this._deckPage === j) this._deckPage = i;
+      this._useList();
+      this._renderMenuLeft();
+      this._edited();
+    });
+    this._el("devlist")?.addEventListener("click", (e) => {
+      const add = e.target.closest("button[data-add]");
+      if (!add || this._part !== "deck") return;
+      const id = add.dataset.add;
+      const buttons = this._deckButtons();
+      const free = buttons.slice(0, d.cols * d.rows).findIndex((k) => !k.action);
+      if (free < 0) { this._error = "Diese Seite ist voll. Lege eine neue Seite an oder vergrößere das Raster."; this._renderTop(); return; }
+      this._error = "";
+      buttons[free] = { action: DECK_RUN.includes(id.split(".")[0]) ? "ha_run" : "ha_toggle", entity: id };
+      this._selected = "#" + free;
+      this._edited();
+    });
+    this._el("grid")?.addEventListener("click", (e) => {
+      const p = e.target.closest("[data-dpage]");
+      if (!p || this._part !== "deck") return;
+      const n = d.pages.length;
+      this._deckGo((this._deckPage + (p.dataset.dpage === "next" ? 1 : n - 1)) % n);
+    });
+  }
+
+  _deckGo(i) {
+    this._deckPage = i;
+    this._selected = null;
+    this._useList();
+    this._renderMenuLeft();
+    this._renderPreview();
+    this._renderProps();
+  }
+
+  _wireDeckProps() {
+    const on = (id, ev, fn) => { const el = this._el(id); if (el) el.addEventListener(ev, fn); };
+    const b = this._item(this._selected);
+    if (!b) return;
+    const set = (patch, props = false) => {
+      for (const [k, v] of Object.entries(patch)) { if (v === "" || v == null) delete b[k]; else b[k] = v; }
+      this._edited(props);
+    };
+    on("dkaction", "change", (e) => {
+      const a = e.target.value;
+      const keep = { label: b.label, icon: b.icon, color: b.color };
+      for (const k of Object.keys(b)) delete b[k];
+      if (a) Object.assign(b, { action: a }, Object.fromEntries(Object.entries(keep).filter(([, v]) => v)));
+      if (a === "page") b.page = Math.min(2, this._menu.deck.pages.length);
+      if (a.startsWith("pc_") && this._deckInfo?.computers?.length) b.computer = this._deckInfo.computers[0];
+      this._edited(true);
+    });
+    on("dkentity", "change", (e) => set({ entity: e.target.value.trim() }, true));
+    on("dkpagego", "change", (e) => set({ page: Number(e.target.value) }));
+    on("dkcomputer", "change", (e) => set({ computer: e.target.value.trim() }));
+    on("dkvalue", "change", (e) => set({ value: e.target.value }));
+    on("dkscene", "change", (e) => set({ scene: e.target.value.trim() }));
+    on("dksource", "change", (e) => set({ source: e.target.value.trim() }));
+    on("dkinput", "change", (e) => set({ input: e.target.value.trim() }));
+    on("dklabel", "change", (e) => set({ label: e.target.value.trim() }));
+    on("dkcolor", "change", (e) => set({ color: e.target.value.toLowerCase() }, true));
+    this._el("props")?.querySelectorAll(".dkswatch button[data-color]").forEach((s) =>
+      s.addEventListener("click", () => set({ color: s.dataset.color }, true)));
+    on("dkclear", "click", () => { for (const k of Object.keys(b)) delete b[k]; this._edited(true); });
+    const holder = this._el("iconpicker");
+    if (holder) {
+      const picker = document.createElement("ha-icon-picker");
+      picker.hass = this._hass;
+      picker.value = b.icon ? "mdi:" + b.icon : "";
+      picker.placeholder = this._deckIcon({ ...b, icon: "" }, false) || "mdi:gesture-tap";
+      picker.addEventListener("value-changed", (e) => {
+        const v = (e.detail.value || "").trim();
+        if (v && !v.startsWith("mdi:")) { this._error = "Die Echo Show kennt nur Symbole aus mdi."; this._renderTop(); return; }
+        this._error = "";
+        set({ icon: v.replace(/^mdi:/, "") });
+      });
+      holder.appendChild(picker);
+    }
+  }
+
   _renderMenuLeft() {
     const left = this._el("mleft");
     if (left) left.innerHTML = this._menuLeftHtml();
@@ -1759,6 +2167,7 @@ class EchoStudioPanel extends HTMLElement {
     const left = this._el("mleft");
     if (!left) return;
     if (this._part === "radio") { this._wireRadioLeft(left); return; }
+    if (this._part === "deck") { this._wireDeckLeft(left); return; }
     let typing = null;
     left.addEventListener("input", (e) => {
       if (e.target.id === "q") {
@@ -1803,6 +2212,7 @@ class EchoStudioPanel extends HTMLElement {
   // Die Felder der gewählten Kachel oder Überschrift des Menüs.
   _wireMenuProps() {
     if (this._part === "radio") { this._wireRadioProps(); return; }
+    if (this._part === "deck") { this._wireDeckProps(); return; }
     const on = (id, ev, fn) => { const el = this._el(id); if (el) el.addEventListener(ev, fn); };
     const it = this._item(this._selected);
     if (!it) return;

@@ -21,6 +21,18 @@ Geräte mit dem Label echo). look: das Farbthema des Menüs und wie viele Kachel
 Reihenfolge (die Show trägt mit echo_studio/radio/favorite selbst ein und aus), country das Land für
 „Beliebt“ und die Genres (leer: das der Show), genres die Genres links (null: die üblichen der Show),
 start die Liste beim Öffnen, sort die Ordnung der Listen, hide ausgeblendete Listen.
+
+deck: das Deck der Show (der Reiter „Deck“, wie Macro Deck), optional:
+
+    "deck": {"cols": 5, "rows": 3,
+             "pages": [{"name": "Wohnzimmer", "buttons": [
+                 {"action": "ha_toggle", "entity": "light.eck", "label": "Eck", "icon": "lightbulb",
+                  "color": "#fb8c00"},
+                 {"action": "page", "page": 2}, {}, {"action": "pc_keys", "computer": "PC", "value": "ctrl+c"}, …]}]}
+
+Die Tasten stehen Zeile für Zeile; {} ist ein leeres Feld. OBS und die PCs mit ihren Schlüsseln bleiben
+auf der Show; sie sagt mit echo_studio/deck/hello nur ihre Namen und OBS' Szenen. Fehlt deck, hat
+Echo Studio noch keins, und die Show schickt ihres (echo_studio/deck/save).
 """
 
 from __future__ import annotations
@@ -52,6 +64,16 @@ _COUNTRY = re.compile(r"^[A-Z]{2}$")
 _ENTITY = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
 _COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 _ICON = re.compile(r"^mdi:[a-z0-9-]{1,64}$")  # die Echo Show zeichnet im Menü nur mdi-Symbole
+
+
+# Das Deck.
+DECK_ACTIONS = ("", "ha_toggle", "ha_run", "page", "obs_scene", "obs_stream", "obs_record", "obs_mute",
+                "obs_source", "pc_keys", "pc_type", "pc_open", "pc_run")
+DECK_NAMED_COLORS = ("", "blue", "green", "red", "orange", "purple", "gray")
+DECK_COLS = (2, 8)
+DECK_ROWS = (1, 5)
+DECK_PAGES = 10
+_DECK_ICON = re.compile(r"^[a-z0-9-]{1,64}$")
 
 
 class MenuError(ValueError):
@@ -239,4 +261,88 @@ def clean_menu(raw: Any) -> dict[str, Any]:
         "scenes": _items(raw.get("scenes"), "scenes"),
         "look": {"theme": theme, "columns": columns},
         "radio": clean_radio(raw.get("radio")),
+        **({"deck": deck} if (deck := clean_deck(raw.get("deck"))) is not None else {}),
     }
+
+
+def _deck_button(raw: Any) -> dict[str, Any]:
+    """Eine Taste des Decks; was nicht passt, fällt weg."""
+    if not isinstance(raw, dict):
+        return {}
+    action = raw.get("action", "")
+    if action not in DECK_ACTIONS or not action:
+        return {}
+    b: dict[str, Any] = {"action": action}
+    for key, limit in (("label", 64), ("scene", 256), ("source", 256), ("input", 256), ("computer", 256)):
+        v = _text(raw.get(key), limit)
+        if v:
+            b[key] = v
+    value = raw.get("value")
+    if isinstance(value, str) and value:
+        b["value"] = value[:4096]
+    icon = raw.get("icon")
+    if isinstance(icon, str):
+        icon = icon.strip().removeprefix("mdi:")
+        if _DECK_ICON.match(icon):
+            b["icon"] = icon
+    color = raw.get("color")
+    if isinstance(color, str) and (color in DECK_NAMED_COLORS or _COLOR.match(color)) and color:
+        b["color"] = color.lower()
+    entity = raw.get("entity")
+    if isinstance(entity, str) and _ENTITY.match(entity):
+        b["entity"] = entity
+    page = raw.get("page")
+    if isinstance(page, int) and not isinstance(page, bool) and 1 <= page <= DECK_PAGES:
+        b["page"] = page
+    return b
+
+
+def clean_deck(raw: Any) -> dict[str, Any] | None:
+    """Prüft den Teil deck; None, wenn es keinen gibt."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise MenuError("deck ist kein Objekt")
+
+    def _int(key: str, span: tuple[int, int], default: int) -> int:
+        v = raw.get(key, default)
+        if not isinstance(v, int) or isinstance(v, bool):
+            raise MenuError(f"deck.{key} ist keine Zahl")
+        return min(max(v, span[0]), span[1])
+
+    cols = _int("cols", DECK_COLS, 5)
+    rows = _int("rows", DECK_ROWS, 3)
+    pages_raw = raw.get("pages", [])
+    if not isinstance(pages_raw, list):
+        raise MenuError("deck.pages ist keine Liste")
+    pages: list[dict[str, Any]] = []
+    for p in pages_raw[:DECK_PAGES]:
+        if not isinstance(p, dict):
+            raise MenuError("eine Seite des Decks ist kein Objekt")
+        buttons_raw = p.get("buttons", [])
+        if not isinstance(buttons_raw, list):
+            raise MenuError("deck.pages.buttons ist keine Liste")
+        buttons = [_deck_button(b) for b in buttons_raw[: DECK_COLS[1] * DECK_ROWS[1]]]
+        while buttons and not buttons[-1]:
+            buttons.pop()
+        page: dict[str, Any] = {"buttons": buttons}
+        name = _text(p.get("name"), 64)
+        if name:
+            page["name"] = name
+        pages.append(page)
+    return {"cols": cols, "rows": rows, "pages": pages}
+
+
+def clean_deck_info(raw: Any) -> dict[str, Any]:
+    """Was die Show über OBS und die PCs sagt (echo_studio/deck/hello): nur Namen."""
+    if not isinstance(raw, dict):
+        raise MenuError("info ist kein Objekt")
+
+    def _names(key: str) -> list[str]:
+        v = raw.get(key) or []
+        if not isinstance(v, list):
+            return []
+        return [n for n in (_text(x, 128) for x in v[:200]) if n]
+
+    return {"computers": _names("computers"), "obs_scenes": _names("obs_scenes"),
+            "obs_inputs": _names("obs_inputs"), "obs_connected": raw.get("obs_connected") is True}

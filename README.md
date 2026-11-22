@@ -10,6 +10,10 @@ Dashboard der Echo Show zeigt und wie es aussieht:
 - **Gestalten je Karte:** eigener Name, Symbol (mit Suche), eigenes Icon als Bild, Hintergrundbild,
   Farbe wenn an und wenn aus, Name oder Zustand ausblenden, Größe klein, breit oder groß
 - **Vorschau** im Format der Echo Show
+- **Deck** (Hilal OS, unter *Menü → Deck*): ein Stream Deck im Stil von Macro Deck für den Reiter
+  „Deck“ der Show – Seiten mit einem Raster aus Tasten, die Geräte schalten, Szenen und Skripte
+  starten, Seiten wie Ordner öffnen, am PC Tasten drücken (TECHO5-Deck-Programm) oder OBS steuern.
+  Auf der Show ändert ein langer Druck Name, Farbe und Platz einer Taste; das erscheint hier von selbst.
 
 Die Echo Show braucht dafür [TECHO5](https://github.com/HuskerMinion/techo5) mit der Wahl
 **„Geräte mit Label echo“** unter **Dashboard to show** und **Dashboard: Drawn on the device**.

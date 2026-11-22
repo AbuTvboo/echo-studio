@@ -46,7 +46,7 @@ from .const import (
     STORAGE_VERSION,
 )
 from .layout import LayoutError, clean_layout, files_in
-from .menu import MenuError, clean_menu, radio_favorite
+from .menu import MenuError, clean_deck_info, clean_menu, radio_favorite
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -62,6 +62,8 @@ class StudioData:
         self.layout: dict[str, Any] = {"version": 1, "items": []}
         self.menu_store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, MENU_STORAGE_KEY)
         self.menu: dict[str, Any] = clean_menu({})
+        # Was die Show zuletzt über OBS und ihre PCs sagte (nur Namen), für den Deck-Designer.
+        self.deck_info: dict[str, Any] = {"computers": [], "obs_scenes": [], "obs_inputs": [], "obs_connected": False}
         self.files = Path(hass.config.path(FILES_DIR))
 
 
@@ -84,7 +86,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if not hass.data.get(f"{DOMAIN}_registered"):
         # Websocket-Befehle, Dateien und statische Pfade lassen sich nicht abmelden: einmal je Start.
-        for handler in (ws_layout_get, ws_layout_save, ws_menu_get, ws_menu_save, ws_radio_favorite, ws_image_upload, ws_info):
+        for handler in (ws_layout_get, ws_layout_save, ws_menu_get, ws_menu_save, ws_radio_favorite,
+                        ws_deck_save, ws_deck_hello, ws_deck_info, ws_image_upload, ws_info):
             websocket_api.async_register_command(hass, handler)
         hass.http.register_view(StudioFileView())
         await hass.http.async_register_static_paths(
@@ -213,6 +216,61 @@ async def ws_radio_favorite(hass: HomeAssistant, connection: websocket_api.Activ
     await data.menu_store.async_save(menu)
     hass.bus.async_fire(EVENT_MENU_UPDATED, {"tabs": len(menu["tabs"]), "radio": True})
     connection.send_result(msg["id"], menu)
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "echo_studio/deck/save", vol.Required("deck"): dict}
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_deck_save(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Die Show hat ihr Deck geändert (oder schickt es zum ersten Mal): es kommt ins Menü."""
+    data = _data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_loaded", "Echo Studio ist nicht eingerichtet")
+        return
+    try:
+        menu = clean_menu({**data.menu, "deck": msg["deck"]})
+    except MenuError as err:
+        connection.send_error(msg["id"], "invalid_deck", str(err))
+        return
+    if menu == data.menu:
+        connection.send_result(msg["id"], menu)
+        return
+    data.menu = menu
+    await data.menu_store.async_save(menu)
+    hass.bus.async_fire(EVENT_MENU_UPDATED, {"tabs": len(menu["tabs"]), "deck": True})
+    connection.send_result(msg["id"], menu)
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "echo_studio/deck/hello", vol.Required("info"): dict}
+)
+@websocket_api.require_admin
+@callback
+def ws_deck_hello(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Die Show sagt, welche PCs und welche Szenen und Eingänge in OBS es gibt (nur Namen)."""
+    data = _data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_loaded", "Echo Studio ist nicht eingerichtet")
+        return
+    try:
+        data.deck_info = clean_deck_info(msg["info"])
+    except MenuError as err:
+        connection.send_error(msg["id"], "invalid_info", str(err))
+        return
+    connection.send_result(msg["id"], data.deck_info)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "echo_studio/deck/info"})
+@callback
+def ws_deck_info(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Für den Deck-Designer: die PCs und OBS' Szenen, wie die Show sie zuletzt sagte."""
+    data = _data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_loaded", "Echo Studio ist nicht eingerichtet")
+        return
+    connection.send_result(msg["id"], data.deck_info)
 
 
 def _remove_files(folder: Path, names: set[str]) -> None:
