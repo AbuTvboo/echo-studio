@@ -37,7 +37,7 @@ const MENU_TABS = [["light", "Licht"], ["music", "Musik"], ["radio", "Radio"], [
 const MENU_DOMAINS = { light: ["light", "switch"], scenes: ["scene", "script"] };
 // Das Deck (Hilal OS): was eine Taste tun kann, wie config.DeckActions der Show.
 const DECK_ACTIONS = [["", "Leer"], ["ha_toggle", "Home Assistant: an/aus"], ["ha_run", "Home Assistant: ausführen (Szene, Skript, Taste)"],
-  ["page", "Seite öffnen (Ordner)"], ["pc_keys", "PC: Tastenkürzel"], ["pc_type", "PC: Text tippen"], ["pc_open", "PC: App oder Webseite öffnen"],
+  ["page", "Seite öffnen (Ordner)"], ["wol", "PC einschalten (Wake on LAN)"], ["pc_keys", "PC: Tastenkürzel"], ["pc_type", "PC: Text tippen"], ["pc_open", "PC: App oder Webseite öffnen"],
   ["pc_run", "PC: Skript ausführen"], ["obs_scene", "OBS: Szene wechseln"], ["obs_stream", "OBS: Stream an/aus"],
   ["obs_record", "OBS: Aufnahme an/aus"], ["obs_mute", "OBS: Ton stumm/an"], ["obs_source", "OBS: Quelle zeigen/verbergen"]];
 const DECK_COLORS = ["#e53935", "#fb8c00", "#fdd835", "#43a047", "#00acc1", "#1e88e5", "#5e35b1", "#d81b60", "#6d4c41", "#546e7a", "#212121"];
@@ -1883,7 +1883,7 @@ class EchoStudioPanel extends HTMLElement {
       lock: on ? "lock-open-variant" : "lock", climate: "thermostat" };
     const own = { obs_scene: "monitor", obs_stream: on ? "access-point" : "access-point-off", obs_record: on ? "record-rec" : "record",
       obs_mute: on ? "microphone-off" : "microphone", obs_source: on ? "eye" : "eye-off", pc_keys: "keyboard",
-      pc_type: "form-textbox", pc_open: "open-in-app", pc_run: "script-text-play", page: "folder" };
+      pc_type: "form-textbox", pc_open: "open-in-app", pc_run: "script-text-play", page: "folder", wol: "power" };
     if (b.action === "ha_toggle" || b.action === "ha_run") return "mdi:" + (ha[dom] || "home-assistant");
     return own[b.action] ? "mdi:" + own[b.action] : "";
   }
@@ -1902,6 +1902,7 @@ class EchoStudioPanel extends HTMLElement {
       case "pc_keys": return (b.value || "").toUpperCase();
       case "pc_type": return "Text";
       case "pc_open": case "pc_run": return b.value || "";
+      case "wol": return b.computer || "Wake on LAN";
     }
     return "";
   }
@@ -1995,7 +1996,8 @@ class EchoStudioPanel extends HTMLElement {
       if (!b.action) return `<div class="dkkey empty ${sel}" draggable="true" data-idx="${i}" data-sel="#${i}" style="${at}"></div>`;
       const on = this._deckOn(b);
       const own = this._deckColor(b.color);
-      const stateful = ["ha_toggle", "obs_scene", "obs_stream", "obs_record", "obs_mute", "obs_source"].includes(b.action);
+      const stateful = ["ha_toggle", "obs_scene", "obs_stream", "obs_record", "obs_mute", "obs_source"].includes(b.action)
+        || (b.action === "wol" && !!b.computer);
       let fill = "#2b2b2f";
       if (on) fill = own || "#2eb85c";
       else if (own) fill = stateful ? `color-mix(in srgb, ${own} 38%, #2b2b2f)` : own;
@@ -2036,6 +2038,18 @@ class EchoStudioPanel extends HTMLElement {
       fields = `<label>Gerät (${a === "ha_toggle" ? "Lampe, Schalter …" : "Szene, Skript, Taste, Automation"})</label>
         <input type="text" id="dkentity" list="dkents" value="${this._esc(b.entity || "")}" placeholder="light.wohnzimmer">${list("dkents", ents)}
         ${b.entity ? `<div class="hint">${this._esc(this._friendly(b.entity))}</div>` : ""}`;
+    } else if (a === "wol") {
+      const pcs = info.computers || [];
+      const ok = !b.value || /^([0-9a-f]{2}[:-]?){5}[0-9a-f]{2}$/i.test(b.value.trim());
+      fields = `<label>MAC-Adresse des PCs</label>
+        <input type="text" id="dkvalue" value="${this._esc(b.value || "")}" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17" spellcheck="false">
+        ${ok ? "" : `<div class="hint" style="color:#ff8a80">Das ist keine MAC-Adresse (sechs Paare aus 0–9 und A–F).</div>`}
+        <div class="hint">Steht unter Windows bei <code>ipconfig /all</code> als „Physische Adresse“, unter Linux bei <code>ip link</code> hinter „link/ether“,
+          oder in der Fritz!Box beim Gerät. Im BIOS und im Netzwerkadapter muss Wake on LAN an sein.</div>
+        <label>Anzeige „läuft“ <small class="hint">(optional)</small></label>
+        <select id="dkcomputer"><option value="">Ohne Anzeige</option>${pcs.map((c) =>
+          `<option ${c === b.computer ? "selected" : ""}>${this._esc(c)}</option>`).join("")}</select>
+        <div class="hint">Mit dem Deck-Programm auf dem PC leuchtet die Taste, solange er läuft.</div>`;
     } else if (a === "page") {
       fields = `<label>Öffnet</label><select id="dkpagego">${this._menu.deck.pages.map((_, i) =>
         `<option value="${i + 1}" ${b.page === i + 1 ? "selected" : ""}>${this._esc(this._deckPageName(i))}</option>`).join("")}</select>`;
