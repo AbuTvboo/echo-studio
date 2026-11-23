@@ -199,7 +199,7 @@ input[type=search], input[type=text], input[type=password], select { width:100%;
 .dktop .mtabs { --mr:color-mix(in srgb, var(--mg) 70%, #fff); --md:#c8d0da; }
 .dktop .x { flex:none; width:calc(var(--u)*45); height:calc(var(--u)*45); border-radius:50%; background:color-mix(in srgb, var(--mg) 70%, #fff);
   display:flex; align-items:center; justify-content:center; font-size:calc(var(--u)*30); color:#fff; }
-.dkkey { position:absolute; width:var(--k); height:var(--k); box-sizing:border-box; padding:0; margin:0; border-radius:14%; cursor:grab; display:flex; flex-direction:column;
+.dkkey { position:absolute; width:var(--k); height:var(--k); box-sizing:border-box; padding:0; margin:0; border-radius:calc(var(--k)*0.14); cursor:grab; display:flex; flex-direction:column;
   align-items:center; justify-content:center; gap:calc(var(--k)*0.04); --c:#2b2b2f;
   background:linear-gradient(180deg, color-mix(in srgb, var(--c) 88%, #fff), color-mix(in srgb, var(--c) 92%, #000));
   border:1px solid color-mix(in srgb, var(--c) 78%, #fff); box-shadow:0 calc(var(--u)*3) calc(var(--u)*8) rgba(0,0,0,.45); }
@@ -2020,13 +2020,15 @@ class EchoStudioPanel extends HTMLElement {
     const bar = d.pages.length > 1 || !d.pages.some((p) => p.buttons.some((b) => b.action));
     const ax0 = m, ay0 = head + m, ax1 = 1280 - m, ay1 = 800 - m;
     const gy1 = bar ? ay1 - barH - px(6) : ay1;
-    const side = Math.floor(Math.min((ax1 - ax0 - (d.cols - 1) * gap) / d.cols, (gy1 - ay0 - (d.rows - 1) * gap) / d.rows));
-    const w = d.cols * side + (d.cols - 1) * gap, h = d.rows * side + (d.rows - 1) * gap;
+    // Die Tasten füllen die ganze Fläche, wie auf der Show (auch breiter als hoch).
+    const kw = Math.floor((ax1 - ax0 - (d.cols - 1) * gap) / d.cols), kh = Math.floor((gy1 - ay0 - (d.rows - 1) * gap) / d.rows);
+    const side = Math.min(kw, kh);
+    const w = d.cols * kw + (d.cols - 1) * gap, h = d.rows * kh + (d.rows - 1) * gap;
     const x0 = ax0 + Math.floor((ax1 - ax0 - w) / 2), y0 = ay0 + Math.floor((gy1 - ay0 - h) / 2);
     const u = (v) => `calc(var(--u)*${(v * 0.75).toFixed(2)})`;
     const keys = buttons.slice(0, n).map((b, i) => {
       const sel = this._selected === "#" + i ? "sel" : "";
-      const at = `left:${u(x0 + (i % d.cols) * (side + gap))};top:${u(y0 + Math.floor(i / d.cols) * (side + gap))}`;
+      const at = `left:${u(x0 + (i % d.cols) * (kw + gap))};top:${u(y0 + Math.floor(i / d.cols) * (kh + gap))};width:${u(kw)};height:${u(kh)}`;
       if (!b.action) return `<div class="dkkey empty ${sel}" draggable="true" data-idx="${i}" data-sel="#${i}" style="${at}"></div>`;
       const on = this._deckOn(b);
       const own = this._deckColor(b.color);
@@ -2155,7 +2157,8 @@ class EchoStudioPanel extends HTMLElement {
   }
 
   _wireDeckLeft(left) {
-    const d = this._deckEnsure();
+    // Das Deck nicht hier festhalten: Speichern und die Show ersetzen this._menu.deck, danach gingen
+    // Änderungen in ein Deck, das niemand mehr zeigt. Jeder Handler holt sich das aktuelle.
     if (!this._deckInfoAt || Date.now() - this._deckInfoAt > 10000) { // die PCs und ihre Apps, frisch
       this._deckInfoAt = Date.now();
       this._hass.callWS({ type: "echo_studio/deck/info" }).then((i) => {
@@ -2171,6 +2174,7 @@ class EchoStudioPanel extends HTMLElement {
       typing = setTimeout(() => this._renderDeviceList(), 150);
     });
     left.addEventListener("change", (e) => {
+      const d = this._deckEnsure();
       if (e.target.id === "dkcols" || e.target.id === "dkrows") {
         d[e.target.id === "dkcols" ? "cols" : "rows"] = Number(e.target.value);
         this._selected = null;
@@ -2185,6 +2189,7 @@ class EchoStudioPanel extends HTMLElement {
       }
     });
     left.addEventListener("click", (e) => {
+      const d = this._deckEnsure();
       if (e.target.id === "dkaddpage") {
         if (d.pages.length >= 10) return;
         d.pages.push({ name: "", buttons: [] });
@@ -2219,6 +2224,7 @@ class EchoStudioPanel extends HTMLElement {
       this._edited();
     });
     this._el("devlist")?.addEventListener("click", (e) => {
+      const d = this._deckEnsure();
       const add = e.target.closest("button[data-add]");
       if (!add || this._part !== "deck") return;
       const id = add.dataset.add;
@@ -2231,6 +2237,7 @@ class EchoStudioPanel extends HTMLElement {
       this._edited();
     });
     this._el("grid")?.addEventListener("click", (e) => {
+      const d = this._deckEnsure();
       const p = e.target.closest("[data-dpage]");
       if (!p || this._part !== "deck") return;
       const n = d.pages.length;
