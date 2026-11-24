@@ -33,7 +33,7 @@ const PREVIEW_DELAY = 400;      // Zustandsänderungen sammeln, bevor die Vorsch
 // die Farbthemen und ihre Farben (wie drawer_ottoman_menu.go und tv_ottoman_theme.go sie zeichnen:
 // Fläche, Akzent, gedämpfte Schrift, Ränder).
 const MENU_TABS = [["light", "Licht"], ["music", "Musik"], ["radio", "Radio"], ["tv", "TV"], ["football", "Fußball"],
-  ["cameras", "Kameras"], ["scenes", "Szenen"], ["announce", "Ansagen"], ["call", "Anrufen"], ["todo", "To-do"], ["deck", "Deck"]];
+  ["cameras", "Kameras"], ["scenes", "Szenen"], ["announce", "Ansagen"], ["call", "Anrufen"], ["todo", "To-do"], ["deck", "Deck"], ["news", "Nachrichten"]];
 const MENU_DOMAINS = { light: ["light", "switch"], scenes: ["scene", "script"] };
 // Das Deck (Hilal OS): was eine Taste tun kann, wie config.DeckActions der Show.
 const DECK_ACTIONS = [["", "Leer"], ["ha_toggle", "Home Assistant: an/aus"], ["ha_run", "Home Assistant: ausführen (Szene, Skript, Taste)"],
