@@ -91,7 +91,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not hass.data.get(f"{DOMAIN}_registered"):
         # Websocket-Befehle, Dateien und statische Pfade lassen sich nicht abmelden: einmal je Start.
         for handler in (ws_layout_get, ws_layout_save, ws_menu_get, ws_menu_save, ws_radio_favorite,
-                        ws_deck_save, ws_deck_hello, ws_deck_info, ws_image_upload, ws_info):
+                        ws_deck_save, ws_deck_hello, ws_deck_info, ws_offers_save, ws_image_upload, ws_info):
             websocket_api.async_register_command(hass, handler)
         hass.http.register_view(StudioFileView())
         await hass.http.async_register_static_paths(
@@ -244,6 +244,31 @@ async def ws_deck_save(hass: HomeAssistant, connection: websocket_api.ActiveConn
     data.menu = menu
     await data.menu_store.async_save(menu)
     hass.bus.async_fire(EVENT_MENU_UPDATED, {"tabs": len(menu["tabs"]), "deck": True})
+    connection.send_result(msg["id"], menu)
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "echo_studio/offers/save", vol.Required("offers"): dict}
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_offers_save(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Die Show hat ihre Favoriten der Angebote geändert (der Stern) oder schickt sie zum ersten Mal."""
+    data = _data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_loaded", "Echo Studio ist nicht eingerichtet")
+        return
+    try:
+        menu = clean_menu({**data.menu, "offers": msg["offers"]})
+    except MenuError as err:
+        connection.send_error(msg["id"], "invalid_offers", str(err))
+        return
+    if menu == data.menu:
+        connection.send_result(msg["id"], menu)
+        return
+    data.menu = menu
+    await data.menu_store.async_save(menu)
+    hass.bus.async_fire(EVENT_MENU_UPDATED, {"tabs": len(menu["tabs"]), "offers": True})
     connection.send_result(msg["id"], menu)
 
 

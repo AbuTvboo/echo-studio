@@ -33,6 +33,14 @@ deck: das Deck der Show (der Reiter „Deck“, wie Macro Deck), optional:
 Die Tasten stehen Zeile für Zeile; {} ist ein leeres Feld. OBS und die PCs mit ihren Schlüsseln bleiben
 auf der Show; sie sagt mit echo_studio/deck/hello nur ihre Namen und OBS' Szenen. Fehlt deck, hat
 Echo Studio noch keins, und die Show schickt ihres (echo_studio/deck/save).
+
+offers: die Angebote der Show (der Bildschirm „Angebote“, Daten von kaufDA), optional:
+
+    "offers": {"favorites": ["Barilla Arrabbiata", "Pfanner Eistee 2L"], "stores": ["Lidl", "EDEKA", "ALDI SÜD", "REWE"]}
+
+favorites sind die Lieblingsprodukte, wie man sie sagt (Marke und Produkt; Größen wie „2L“ oder „Kasten“
+sind Vorlieben), stores die Märkte (leer: Lidl, EDEKA, ALDI SÜD, REWE). Der Stern auf der Show trägt
+selbst ein und aus (echo_studio/offers/save). Fehlt offers, schickt die Show ihre.
 """
 
 from __future__ import annotations
@@ -41,7 +49,10 @@ import re
 from typing import Any
 
 # Die Reiter, die die Echo Show kennt.
-TABS = ("light", "music", "radio", "tv", "football", "cameras", "scenes", "announce", "call", "todo", "deck", "news")
+TABS = ("light", "music", "radio", "tv", "football", "cameras", "scenes", "announce", "call", "todo", "deck", "news", "offers")
+
+# Die Märkte, die die Show bei den Angeboten kennt (offers_ottoman_data.go: offerStores).
+OFFER_STORES = ("Lidl", "EDEKA", "ALDI SÜD", "ALDI Nord", "REWE", "Kaufland", "Penny", "Netto", "Norma")
 
 # Die Farbthemen: „start“ die Farben der Startseite, „show“ das Design der Echo Show, die übrigen wie
 # die Farbthemen des Fernsehens.
@@ -262,7 +273,27 @@ def clean_menu(raw: Any) -> dict[str, Any]:
         "look": {"theme": theme, "columns": columns},
         "radio": clean_radio(raw.get("radio")),
         **({"deck": deck} if (deck := clean_deck(raw.get("deck"))) is not None else {}),
+        **({"offers": offers} if (offers := clean_offers(raw.get("offers"))) is not None else {}),
     }
+
+
+def clean_offers(raw: Any) -> dict[str, Any] | None:
+    """Prüft den Teil offers; None, wenn es keinen gibt."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise MenuError("offers ist kein Objekt")
+    favs_raw = raw.get("favorites") or []
+    stores_raw = raw.get("stores") or []
+    if not isinstance(favs_raw, list) or not isinstance(stores_raw, list):
+        raise MenuError("offers.favorites und offers.stores sind Listen")
+    favorites: list[str] = []
+    for f in favs_raw[:60]:
+        name = _text(f, 60)
+        if name and name.lower() not in (x.lower() for x in favorites):
+            favorites.append(name)
+    stores = [s for s in OFFER_STORES if s in stores_raw]
+    return {"favorites": favorites, "stores": stores}
 
 
 def _deck_button(raw: Any) -> dict[str, Any]:

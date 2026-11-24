@@ -33,8 +33,11 @@ const PREVIEW_DELAY = 400;      // Zustandsänderungen sammeln, bevor die Vorsch
 // die Farbthemen und ihre Farben (wie drawer_ottoman_menu.go und tv_ottoman_theme.go sie zeichnen:
 // Fläche, Akzent, gedämpfte Schrift, Ränder).
 const MENU_TABS = [["light", "Licht"], ["music", "Musik"], ["radio", "Radio"], ["tv", "TV"], ["football", "Fußball"],
-  ["cameras", "Kameras"], ["scenes", "Szenen"], ["announce", "Ansagen"], ["call", "Anrufen"], ["todo", "To-do"], ["deck", "Deck"], ["news", "Nachrichten"]];
+  ["cameras", "Kameras"], ["scenes", "Szenen"], ["announce", "Ansagen"], ["call", "Anrufen"], ["todo", "To-do"], ["deck", "Deck"], ["news", "Nachrichten"], ["offers", "Angebote"]];
 const MENU_DOMAINS = { light: ["light", "switch"], scenes: ["scene", "script"] };
+// Die Märkte der Angebote, wie menu.py: OFFER_STORES; ohne Wahl gelten die ersten vier üblichen.
+const OFFER_STORES = ["Lidl", "EDEKA", "ALDI SÜD", "ALDI Nord", "REWE", "Kaufland", "Penny", "Netto", "Norma"];
+const OFFER_DEFAULT_STORES = ["Lidl", "EDEKA", "ALDI SÜD", "REWE"];
 // Das Deck (Hilal OS): was eine Taste tun kann, wie config.DeckActions der Show.
 const DECK_ACTIONS = [["", "Leer"], ["ha_toggle", "Home Assistant: an/aus"], ["ha_run", "Home Assistant: ausführen (Szene, Skript, Taste)"],
   ["page", "Seite öffnen (Ordner)"], ["wol", "PC einschalten (Wake on LAN)"], ["pc_keys", "PC: Tastenkürzel"], ["pc_type", "PC: Text tippen"], ["pc_open", "PC: App oder Webseite öffnen"],
@@ -199,6 +202,8 @@ input[type=search], input[type=text], input[type=password], select { width:100%;
 .dktop .mtabs { --mr:color-mix(in srgb, var(--mg) 70%, #fff); --md:#c8d0da; }
 .dktop .x { flex:none; width:calc(var(--u)*45); height:calc(var(--u)*45); border-radius:50%; background:color-mix(in srgb, var(--mg) 70%, #fff);
   display:flex; align-items:center; justify-content:center; font-size:calc(var(--u)*30); color:#fff; }
+.ostores { display:flex; flex-wrap:wrap; gap:6px 14px; }
+.ochk { display:flex; align-items:center; gap:6px; font-size:14px; }
 .dkkey { position:absolute; width:var(--k); height:var(--k); box-sizing:border-box; padding:0; margin:0; border-radius:calc(var(--k)*0.14); cursor:grab; display:flex; flex-direction:column;
   align-items:center; justify-content:center; gap:calc(var(--k)*0.04); --c:#2b2b2f;
   background:linear-gradient(180deg, color-mix(in srgb, var(--c) 88%, #fff), color-mix(in srgb, var(--c) 92%, #000));
@@ -408,7 +413,7 @@ class EchoStudioPanel extends HTMLElement {
         const m = await ws({ type: "echo_studio/menu/get" });
         this._menu = { tabs: (m.tabs || []).map((t) => ({ ...t })), light: (m.light || []).map((i) => ({ ...i })),
           scenes: (m.scenes || []).map((i) => ({ ...i })), look: { theme: m.look?.theme || "", columns: m.look?.columns || 0 },
-          radio: this._radioFrom(m.radio), deck: this._deckFrom(m.deck) };
+          radio: this._radioFrom(m.radio), deck: this._deckFrom(m.deck), offers: this._offersFrom(m.offers) };
         try { this._deckInfo = await ws({ type: "echo_studio/deck/info" }); } catch (_) { this._deckInfo = null; }
         this._radioKnown = !!m.radio; // ein Echo Studio, das das Radio schon kennt
         this._menuOK = true;
@@ -555,10 +560,11 @@ class EchoStudioPanel extends HTMLElement {
           while (buttons.length && !buttons[buttons.length - 1].action) buttons.pop();
           return { ...p, buttons };
         }) };
+        if (!menu.offers) delete menu.offers; // noch keine: die Show schickt ihre
         const saved = await this._hass.callWS({ type: "echo_studio/menu/save", menu });
         const keepNew = this._deckNew ? this._menu.deck : null;
         this._menu = { tabs: saved.tabs, light: saved.light, scenes: saved.scenes, look: saved.look, radio: this._radioFrom(saved.radio),
-          deck: this._deckFrom(saved.deck) || keepNew };
+          deck: this._deckFrom(saved.deck) || keepNew, offers: this._offersFrom(saved.offers) };
         if (this._mode === "menu") this._useList();
         this._menuDirty = false;
       }
@@ -1382,13 +1388,14 @@ class EchoStudioPanel extends HTMLElement {
   _useList() {
     if (this._mode !== "menu") { this._items = this._cards; return; }
     if (this._part === "deck") { this._items = this._deckButtons(); return; }
+    if (this._part === "offers") { this._items = []; return; }
     this._items = this._part === "scenes" ? this._menu.scenes : this._part === "radio" ? this._menu.radio.favorites : this._menu.light;
   }
 
   _isList() { return this._part === "light" || this._part === "scenes"; }
 
   _menuMainHtml() {
-    const parts = [["light", "Licht"], ["scenes", "Szenen"], ["radio", "Radio"], ["deck", "Deck"], ["tabs", "Reiter"], ["look", "Aussehen"]];
+    const parts = [["light", "Licht"], ["scenes", "Szenen"], ["radio", "Radio"], ["deck", "Deck"], ["offers", "Angebote"], ["tabs", "Reiter"], ["look", "Aussehen"]];
     return `<div class="main">
       <div class="pane" id="devpane"><h2>Menü der Echo Show</h2>
         <div class="seg mparts" id="mparts">${parts.map(([k, t]) => `<button data-part="${k}" class="${this._part === k ? "on" : ""}">${t}</button>`).join("")}</div>
@@ -1406,6 +1413,8 @@ class EchoStudioPanel extends HTMLElement {
           ? "Tasten antippen zum Gestalten, ziehen zum Tauschen. Nach „Speichern“ übernimmt die Echo Show das Deck gleich; was du dort änderst, erscheint hier von selbst."
           : this._part === "radio"
           ? "Favoriten ziehen zum Sortieren, antippen zum Bearbeiten. Auf der Show kommt ein Sender mit langem Druck oder dem Herz im Player dazu; das erscheint hier von selbst."
+          : this._part === "offers"
+          ? "Die Preise sucht die Echo Show selbst bei kaufDA, in der Nähe deines Zuhauses in Home Assistant. Auf der Show merkt der Stern in der Suche ein Produkt; das erscheint hier von selbst."
           : "So sieht das Menü auf der Echo Show aus. Nach „Speichern“ übernimmt sie es gleich."}</span></div></div>
       <div class="pane props" id="props"></div>
     </div>`;
@@ -1426,6 +1435,7 @@ class EchoStudioPanel extends HTMLElement {
     }
     if (this._part === "radio") return this._radioLeftHtml();
     if (this._part === "deck") return this._deckLeftHtml();
+    if (this._part === "offers") return this._offersLeftHtml();
     if (this._part === "look") {
       const look = this._menu.look;
       return `<label class="hint">Farbthema</label>
@@ -1477,6 +1487,7 @@ class EchoStudioPanel extends HTMLElement {
   _menuPreviewHtml() {
     if (this._part === "radio") return this._radioPreviewHtml();
     if (this._part === "deck") return this._deckPreviewHtml();
+    if (this._part === "offers") return this._offersPreviewHtml();
     const look = this._menu.look;
     const [ground, accent, soft, rules] = MENU_COLORS[look.theme || "start"] || MENU_COLORS.start;
     const tabs = this._menuTabsList().filter((t) => t.show !== false);
@@ -1521,6 +1532,11 @@ class EchoStudioPanel extends HTMLElement {
   _menuPropsHtml() {
     if (this._part === "radio") return this._radioPropsHtml();
     if (this._part === "deck") return this._deckPropsHtml();
+    if (this._part === "offers") return `<h2>Angebote</h2><p class="hint">Schreib ein Produkt so, wie du es sagst: Marke und Produkt,
+      etwa „Barilla Arrabbiata“ oder „Paulaner Spezi“. Größen und Gebinde („2L“, „Kasten 20x0,5l“) sind Vorlieben: Angebote, die sie
+      nennen, stehen vorn. Ein Tippfehler in einem langen Wort ist kein Problem.</p><p class="hint">Die Echo Show fragt alle vier Stunden
+      bei kaufDA nach und zeigt nur die angehakten Märkte. Ist ein Favorit irgendwo im Angebot, steht die Zahl auf dem Knopf neben der
+      Uhr der Startseite.</p>`;
     if (!this._isList()) {
       return this._part === "tabs"
         ? `<h2>Reiter</h2><p class="hint">Links stellst du ein, welche Reiter das Menü zeigt, in welcher Reihenfolge und unter welchem Namen. Auf der Show gedrückt halten und Ziehen ordnet sie dort nur bis zum nächsten Speichern hier.</p>`
@@ -1566,6 +1582,7 @@ class EchoStudioPanel extends HTMLElement {
         try {
           const m = await this._hass.callWS({ type: "echo_studio/menu/get" });
           this._menu.radio = this._radioFrom(m.radio);
+          if (m.offers) this._menu.offers = this._offersFrom(m.offers); // der Stern auf der Show
           if (m.deck) { this._menu.deck = this._deckFrom(m.deck); this._deckNew = false; } // auf der Show geändert
           try { this._deckInfo = await this._hass.callWS({ type: "echo_studio/deck/info" }); } catch (_) { /* wie vorher */ }
           if (this._mode === "menu") {
@@ -1831,6 +1848,85 @@ class EchoStudioPanel extends HTMLElement {
   // Tasten am PC (Deck-Programm) oder steuert OBS. Auf der Show lässt ein langer Druck umbenennen,
   // umfärben und verschieben; das kommt hierher zurück. OBS und die PCs mit ihren Schlüsseln bleiben
   // auf der Show; sie sagt nur ihre Namen (echo_studio/deck/info).
+
+  // --- Angebote (Hilal OS): die Lieblingsprodukte und die Märkte; die Preise sucht die Show selbst. ---
+
+  _offersFrom(o) {
+    if (!o) return null;
+    return { favorites: [...(o.favorites || [])], stores: [...(o.stores || [])] };
+  }
+
+  _offersEnsure() {
+    if (!this._menu.offers) this._menu.offers = { favorites: [], stores: [] };
+    return this._menu.offers;
+  }
+
+  _offersLeftHtml() {
+    const o = this._menu.offers || { favorites: [], stores: [] };
+    const stores = o.stores.length ? o.stores : OFFER_DEFAULT_STORES;
+    return `<label class="hint">Lieblingsprodukte</label>
+      ${o.favorites.length ? "" : `<p class="hint">Noch keine hier. ${this._menu.offers ? "" : "Die Echo Show schickt ihre beim nächsten Verbinden."}</p>`}
+      ${o.favorites.map((f, i) => `<div class="mtabrow ofav" data-i="${i}">
+        <input type="text" data-act="name" value="${this._esc(f)}" maxlength="60">
+        <button data-act="up" ${i === 0 ? "disabled" : ""} title="Nach vorne">▲</button>
+        <button data-act="del" title="Entfernen">✕</button></div>`).join("")}
+      <div class="row" style="margin-top:8px"><input type="text" id="ofnew" placeholder="z. B. Barilla Arrabbiata" maxlength="60">
+        <button id="ofadd">+ Favorit</button></div>
+      <label class="hint" style="display:block;margin-top:16px">Märkte</label>
+      <div class="ostores">${OFFER_STORES.map((st) => `<label class="ochk"><input type="checkbox" data-store="${this._esc(st)}"
+        ${stores.includes(st) ? "checked" : ""}> ${this._esc(st)}</label>`).join("")}</div>`;
+  }
+
+  _offersPreviewHtml() {
+    const o = this._menu.offers || { favorites: [], stores: [] };
+    const stores = o.stores.length ? o.stores : OFFER_DEFAULT_STORES;
+    const cards = o.favorites.map((f) => `<div class="mtile" style="--fill:color-mix(in srgb, #172839 85%, #fff);--fg:#f1f4f7;cursor:default">
+      <ha-icon icon="mdi:tag-heart-outline"></ha-icon><div class="name">${this._esc(f)}</div></div>`).join("");
+    return `<div style="--mg:#172839;--ma:#f4a93c;--md:#a9b6c3;--mr:#2b4a57;display:contents">
+      <div class="mtop"><div class="mtabs"><span class="on">Angebote</span><span>${this._esc(stores.join(" · "))}</span></div><span class="x">×</span></div>
+      <div class="mgrid" style="grid-template-columns:repeat(2,1fr)">${cards || `<div class="mhead" style="grid-column:1/-1;color:#a9b6c3;cursor:default">Noch keine Favoriten.</div>`}</div></div>`;
+  }
+
+  _wireOffersLeft(left) {
+    const changed = () => { this._renderMenuLeft(); this._edited(); };
+    const add = () => {
+      const el = this._el("ofnew");
+      const name = (el?.value || "").trim();
+      if (!name) return;
+      const o = this._offersEnsure();
+      if (!o.favorites.some((f) => f.toLowerCase() === name.toLowerCase())) o.favorites.push(name);
+      changed();
+    };
+    left.addEventListener("click", (e) => {
+      if (e.target.id === "ofadd") { add(); return; }
+      const b = e.target.closest(".ofav button[data-act]");
+      if (!b) return;
+      const o = this._offersEnsure();
+      const i = Number(b.closest(".ofav").dataset.i);
+      if (b.dataset.act === "del") o.favorites.splice(i, 1);
+      else if (b.dataset.act === "up" && i > 0) [o.favorites[i - 1], o.favorites[i]] = [o.favorites[i], o.favorites[i - 1]];
+      changed();
+    });
+    left.addEventListener("keydown", (e) => { if (e.target.id === "ofnew" && e.key === "Enter") add(); });
+    left.addEventListener("change", (e) => {
+      const o = this._offersEnsure();
+      const row = e.target.closest(".ofav");
+      if (row && e.target.dataset.act === "name") {
+        const v = e.target.value.trim();
+        const i = Number(row.dataset.i);
+        if (v) o.favorites[i] = v; else o.favorites.splice(i, 1);
+        changed();
+        return;
+      }
+      if (e.target.dataset.store !== undefined) {
+        const now = o.stores.length ? o.stores : [...OFFER_DEFAULT_STORES];
+        const st = e.target.dataset.store;
+        o.stores = e.target.checked ? [...new Set([...now, st])] : now.filter((x) => x !== st);
+        o.stores = OFFER_STORES.filter((x) => o.stores.includes(x));
+        this._edited();
+      }
+    });
+  }
 
   _deckFrom(d) {
     if (!d) return null;
@@ -2365,6 +2461,7 @@ class EchoStudioPanel extends HTMLElement {
     const left = this._el("mleft");
     if (!left) return;
     if (this._part === "radio") { this._wireRadioLeft(left); return; }
+    if (this._part === "offers") { this._wireOffersLeft(left); return; }
     if (this._part === "deck") { this._wireDeckLeft(left); return; }
     let typing = null;
     left.addEventListener("input", (e) => {
@@ -2411,6 +2508,7 @@ class EchoStudioPanel extends HTMLElement {
   _wireMenuProps() {
     if (this._part === "radio") { this._wireRadioProps(); return; }
     if (this._part === "deck") { this._wireDeckProps(); return; }
+    if (this._part === "offers") return;
     const on = (id, ev, fn) => { const el = this._el(id); if (el) el.addEventListener(ev, fn); };
     const it = this._item(this._selected);
     if (!it) return;
