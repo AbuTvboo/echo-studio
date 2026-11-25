@@ -33,7 +33,7 @@ const PREVIEW_DELAY = 400;      // Zustandsänderungen sammeln, bevor die Vorsch
 // die Farbthemen und ihre Farben (wie drawer_ottoman_menu.go und tv_ottoman_theme.go sie zeichnen:
 // Fläche, Akzent, gedämpfte Schrift, Ränder).
 const MENU_TABS = [["light", "Licht"], ["music", "Musik"], ["radio", "Radio"], ["tv", "TV"], ["football", "Fußball"],
-  ["cameras", "Kameras"], ["scenes", "Szenen"], ["announce", "Ansagen"], ["call", "Anrufen"], ["todo", "To-do"], ["deck", "Deck"], ["news", "Nachrichten"], ["offers", "Angebote"]];
+  ["cameras", "Kameras"], ["scenes", "Szenen"], ["announce", "Ansagen"], ["call", "Anrufen"], ["todo", "To-do"], ["deck", "Deck"], ["news", "Nachrichten"], ["offers", "Angebote"], ["remote", "Fernbedienung"]];
 const MENU_DOMAINS = { light: ["light", "switch"], scenes: ["scene", "script"] };
 // Die Märkte der Angebote, wie menu.py: OFFER_STORES; ohne Wahl gelten die ersten vier üblichen.
 const OFFER_STORES = ["Lidl", "EDEKA", "ALDI SÜD", "ALDI Nord", "REWE", "Kaufland", "Penny", "Netto", "Norma"];
@@ -42,7 +42,34 @@ const OFFER_DEFAULT_STORES = ["Lidl", "EDEKA", "ALDI SÜD", "REWE"];
 const DECK_ACTIONS = [["", "Leer"], ["ha_toggle", "Home Assistant: an/aus"], ["ha_run", "Home Assistant: ausführen (Szene, Skript, Taste)"],
   ["page", "Seite öffnen (Ordner)"], ["wol", "PC einschalten (Wake on LAN)"], ["pc_keys", "PC: Tastenkürzel"], ["pc_type", "PC: Text tippen"], ["pc_open", "PC: App oder Webseite öffnen"],
   ["pc_run", "PC: Skript ausführen"], ["pc_power", "PC: Herunterfahren, Neustart, Ruhezustand, Sperren"], ["obs_scene", "OBS: Szene wechseln"], ["obs_stream", "OBS: Stream an/aus"],
-  ["obs_record", "OBS: Aufnahme an/aus"], ["obs_mute", "OBS: Ton stumm/an"], ["obs_source", "OBS: Quelle zeigen/verbergen"]];
+  ["obs_record", "OBS: Aufnahme an/aus"], ["obs_mute", "OBS: Ton stumm/an"], ["obs_source", "OBS: Quelle zeigen/verbergen"],
+  ["tv_key", "TV: Taste der Fernbedienung"], ["tv_app", "TV: App öffnen"], ["tv_remote", "TV: Fernbedienung öffnen"]];
+// Die TV-Box (Hilal OS, Android TV Remote in Home Assistant): ihre Tasten wie deck/tv.go TVKeys, und die
+// App-Kacheln der Fernbedienung, solange keine eigenen eingestellt sind (remote_ottoman_data.go).
+const TV_KEYS = [["POWER", "power", "An/Aus"], ["DPAD_UP", "chevron-up", "Hoch"], ["DPAD_DOWN", "chevron-down", "Runter"],
+  ["DPAD_LEFT", "chevron-left", "Links"], ["DPAD_RIGHT", "chevron-right", "Rechts"], ["DPAD_CENTER", "circle-outline", "OK"],
+  ["BACK", "arrow-left", "Zurück"], ["HOME", "home", "Home"], ["MENU", "menu", "Menü"], ["VOLUME_UP", "volume-plus", "Lauter"],
+  ["VOLUME_DOWN", "volume-minus", "Leiser"], ["VOLUME_MUTE", "volume-off", "Stumm"], ["MEDIA_PLAY_PAUSE", "play-pause", "Play/Pause"],
+  ["MEDIA_NEXT", "skip-next", "Weiter"], ["MEDIA_PREVIOUS", "skip-previous", "Zurück (Titel)"], ["MEDIA_FAST_FORWARD", "fast-forward", "Vorspulen"],
+  ["MEDIA_REWIND", "rewind", "Zurückspulen"], ["CHANNEL_UP", "arrow-up-bold-box-outline", "Kanal +"], ["CHANNEL_DOWN", "arrow-down-bold-box-outline", "Kanal −"],
+  ["SETTINGS", "cog-outline", "Einstellungen"], ["SEARCH", "magnify", "Suche"]];
+const TV_APPS = [
+  { name: "YouTube", app: "com.google.android.youtube.tv", icon: "youtube", color: "#e62117" },
+  { name: "Netflix", app: "com.netflix.ninja", icon: "netflix", color: "#b20710" },
+  { name: "Prime Video", app: "com.amazon.amazonvideo.livingroom", icon: "play-box-outline", color: "#1a98ff" },
+  { name: "Disney+", app: "com.disney.disneyplus", icon: "star-four-points-outline", color: "#113ccf" },
+  { name: "Spotify", app: "com.spotify.tv.android", icon: "spotify", color: "#1db954" },
+  { name: "Play Store", app: "com.android.vending", icon: "google-play", color: "#01875f" }];
+// Weitere Apps, die oft auf einer TV-Box sind: zum Hinzufügen mit einem Tipp.
+const TV_MORE_APPS = [
+  { name: "YouTube Music", app: "com.google.android.youtube.tvmusic", icon: "music-circle", color: "#e62117" },
+  { name: "ARD Mediathek", app: "de.swr.avp.ard.tv", icon: "television-classic", color: "#003480" },
+  { name: "ZDF", app: "com.zdf.android.mediathek", icon: "television-classic", color: "#fa7d19" },
+  { name: "Twitch", app: "tv.twitch.android.app", icon: "twitch", color: "#9146ff" },
+  { name: "Plex", app: "com.plexapp.android", icon: "plex", color: "#e5a00d" },
+  { name: "VLC", app: "org.videolan.vlc", icon: "vlc", color: "#ff8800" },
+  { name: "Einstellungen", app: "com.android.tv.settings", icon: "cog-outline", color: "#546e7a" }];
+const TV_APPS_MAX = 12;
 const DECK_COLORS = ["#e53935", "#fb8c00", "#fdd835", "#43a047", "#00acc1", "#1e88e5", "#5e35b1", "#d81b60", "#6d4c41", "#546e7a", "#212121"];
 const DECK_POWER = [["menu", "Auswahl (Fenster)"], ["shutdown", "Herunterfahren"], ["restart", "Neu starten"], ["sleep", "Ruhezustand"], ["lock", "Sperren"]];
 const DECK_TOGGLE = ["light", "switch", "fan", "cover", "input_boolean", "media_player", "lock", "climate"];
@@ -194,6 +221,40 @@ input[type=search], input[type=text], input[type=password], select { width:100%;
 .mtile.sel { outline:3px solid #fff; outline-offset:2px; }
 .mtile.drop, .mhead.drop { box-shadow:calc(var(--u)*-6) 0 0 0 #fff; }
 /* Das Deck: wie drawer_ottoman_deck.go, dunkel wie Macro Deck */
+/* Die Fernbedienung (Hilal OS): ihre Vorschau wie screen_ottoman_remote.go, in Einheiten der Show (960 breit). */
+.rcscreen { --u:0.10417cqw; aspect-ratio:16/10; overflow:hidden; background:linear-gradient(180deg,#14212d,#0b1520); color:#eef3f6;
+  padding:calc(var(--u)*14) calc(var(--u)*16); display:flex; flex-direction:column; gap:calc(var(--u)*26);
+  font-family:var(--paper-font-body1_-_font-family, Roboto, sans-serif); }
+.rchead { height:calc(var(--u)*70); flex:none; display:flex; align-items:center; gap:calc(var(--u)*14); padding:0 calc(var(--u)*16);
+  border-radius:calc(var(--u)*22); background:linear-gradient(180deg,#22313f,#1a2733); box-shadow:0 calc(var(--u)*4) calc(var(--u)*14) rgba(0,0,0,.4); }
+.rchead ha-icon { --mdc-icon-size:calc(var(--u)*32); color:#4fd1c5; }
+.rchead b { font-size:calc(var(--u)*30); }
+.rchead span { flex:1; font-size:calc(var(--u)*21); color:#a9b6c3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rcround { width:calc(var(--u)*46); height:calc(var(--u)*46); border-radius:50%; border:calc(var(--u)*3) solid #2b5560; display:flex;
+  align-items:center; justify-content:center; font-style:normal; font-size:calc(var(--u)*26); color:#4fd1c5; flex:none; }
+.rcround:first-of-type { border-color:#f4a93c; } .rcround:first-of-type ha-icon { color:#f4a93c; --mdc-icon-size:calc(var(--u)*24); }
+.rcbody { flex:1; min-height:0; display:flex; gap:calc(var(--u)*30); padding-left:calc(var(--u)*12); }
+.rcleft { width:calc(var(--u)*345); display:flex; flex-direction:column; gap:calc(var(--u)*14); flex:none; }
+.rcpad { position:relative; width:calc(var(--u)*345); height:calc(var(--u)*345); border-radius:50%; background:linear-gradient(180deg,#2a3c4d,#1f2d3a);
+  box-shadow:0 calc(var(--u)*4) calc(var(--u)*16) rgba(0,0,0,.45), inset 0 0 0 calc(var(--u)*2) #2d5a63; }
+.rcpad ha-icon { position:absolute; --mdc-icon-size:calc(var(--u)*44); color:#eef3f6; }
+.rcpad .u { left:50%; top:9%; transform:translateX(-50%); } .rcpad .d { left:50%; bottom:9%; transform:translateX(-50%); }
+.rcpad .l { top:50%; left:9%; transform:translateY(-50%); } .rcpad .r { top:50%; right:9%; transform:translateY(-50%); }
+.rcpad b { position:absolute; left:32%; top:32%; width:36%; height:36%; border-radius:50%; background:linear-gradient(180deg,#2f4252,#24323f);
+  display:flex; align-items:center; justify-content:center; font-size:calc(var(--u)*32); box-shadow:0 calc(var(--u)*3) calc(var(--u)*10) rgba(0,0,0,.4); }
+.rcrow { display:flex; gap:calc(var(--u)*14); height:calc(var(--u)*70); }
+.rcrow i { flex:1; border-radius:calc(var(--u)*35); background:linear-gradient(180deg,#2f4252,#24323f); display:flex; align-items:center; justify-content:center; }
+.rcrow ha-icon { --mdc-icon-size:calc(var(--u)*30); }
+.rcvol { width:calc(var(--u)*96); flex:none; border-radius:calc(var(--u)*48); background:linear-gradient(180deg,#2a3c4d,#1f2d3a); display:flex;
+  flex-direction:column; justify-content:space-around; align-items:center; }
+.rcvol ha-icon { --mdc-icon-size:calc(var(--u)*36); }
+.rcapps { flex:1; display:grid; gap:calc(var(--u)*14); align-content:start; grid-auto-rows:minmax(calc(var(--u)*70), calc(var(--u)*150)); }
+.rctile { border-radius:calc(var(--u)*18); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:calc(var(--u)*10);
+  background:linear-gradient(180deg, color-mix(in srgb, var(--c) 60%, #2a3c4d), color-mix(in srgb, var(--c) 50%, #121c26)); font-weight:700;
+  font-size:calc(var(--u)*20); box-shadow:0 calc(var(--u)*3) calc(var(--u)*10) rgba(0,0,0,.35); overflow:hidden; text-align:center; }
+.rctile ha-icon { --mdc-icon-size:calc(var(--u)*40); }
+.rcapp input[type=text] { min-width:0; }
+.dktv button { display:inline-flex; align-items:center; gap:4px; }
 .dkscreen { --u:0.10417cqw; aspect-ratio:16/10; overflow:hidden; position:relative;
   background:#171719; color:#f4f4f6; font-family:var(--paper-font-body1_-_font-family, Roboto, sans-serif); }
 .dkgrid { position:absolute; inset:0; }
@@ -413,7 +474,8 @@ class EchoStudioPanel extends HTMLElement {
         const m = await ws({ type: "echo_studio/menu/get" });
         this._menu = { tabs: (m.tabs || []).map((t) => ({ ...t })), light: (m.light || []).map((i) => ({ ...i })),
           scenes: (m.scenes || []).map((i) => ({ ...i })), look: { theme: m.look?.theme || "", columns: m.look?.columns || 0 },
-          radio: this._radioFrom(m.radio), deck: this._deckFrom(m.deck), offers: this._offersFrom(m.offers) };
+          radio: this._radioFrom(m.radio), deck: this._deckFrom(m.deck), offers: this._offersFrom(m.offers),
+          remote: this._remoteFrom(m.remote) };
         try { this._deckInfo = await ws({ type: "echo_studio/deck/info" }); } catch (_) { this._deckInfo = null; }
         this._radioKnown = !!m.radio; // ein Echo Studio, das das Radio schon kennt
         this._menuOK = true;
@@ -561,10 +623,11 @@ class EchoStudioPanel extends HTMLElement {
           return { ...p, buttons };
         }) };
         if (!menu.offers) delete menu.offers; // noch keine: die Show schickt ihre
+        if (!menu.remote) delete menu.remote; // noch nichts eingestellt: die Show nimmt die üblichen Apps
         const saved = await this._hass.callWS({ type: "echo_studio/menu/save", menu });
         const keepNew = this._deckNew ? this._menu.deck : null;
         this._menu = { tabs: saved.tabs, light: saved.light, scenes: saved.scenes, look: saved.look, radio: this._radioFrom(saved.radio),
-          deck: this._deckFrom(saved.deck) || keepNew, offers: this._offersFrom(saved.offers) };
+          deck: this._deckFrom(saved.deck) || keepNew, offers: this._offersFrom(saved.offers), remote: this._remoteFrom(saved.remote) };
         if (this._mode === "menu") this._useList();
         this._menuDirty = false;
       }
@@ -1388,14 +1451,14 @@ class EchoStudioPanel extends HTMLElement {
   _useList() {
     if (this._mode !== "menu") { this._items = this._cards; return; }
     if (this._part === "deck") { this._items = this._deckButtons(); return; }
-    if (this._part === "offers") { this._items = []; return; }
+    if (this._part === "offers" || this._part === "remote") { this._items = []; return; }
     this._items = this._part === "scenes" ? this._menu.scenes : this._part === "radio" ? this._menu.radio.favorites : this._menu.light;
   }
 
   _isList() { return this._part === "light" || this._part === "scenes"; }
 
   _menuMainHtml() {
-    const parts = [["light", "Licht"], ["scenes", "Szenen"], ["radio", "Radio"], ["deck", "Deck"], ["offers", "Angebote"], ["tabs", "Reiter"], ["look", "Aussehen"]];
+    const parts = [["light", "Licht"], ["scenes", "Szenen"], ["radio", "Radio"], ["deck", "Deck"], ["offers", "Angebote"], ["remote", "Fernbedienung"], ["tabs", "Reiter"], ["look", "Aussehen"]];
     return `<div class="main">
       <div class="pane" id="devpane"><h2>Menü der Echo Show</h2>
         <div class="seg mparts" id="mparts">${parts.map(([k, t]) => `<button data-part="${k}" class="${this._part === k ? "on" : ""}">${t}</button>`).join("")}</div>
@@ -1404,7 +1467,7 @@ class EchoStudioPanel extends HTMLElement {
         ${this._isList() && this._suggested?.[this._part] && !this._menuDirty ? `<p class="hint" style="margin:0 4px 10px">Das zeigt die Echo Show
           gerade (alle Geräte mit dem Label „echo“). Sortiere, ergänze Überschriften oder Farben und tippe auf „Speichern“, dann
           gilt es als eigene Liste.</p>` : ""}
-        <div class="screen"><div class="${this._part === "radio" ? "rpage" : this._part === "deck" ? "dkscreen" : "mscreen"}" id="grid"></div></div>
+        <div class="screen"><div class="${this._part === "radio" ? "rpage" : this._part === "deck" ? "dkscreen" : this._part === "remote" ? "rcscreen" : "mscreen"}" id="grid"></div></div>
         <div class="actions">${this._isList() ? `<button id="addheading">+ Überschrift</button>
           <button id="byroom" title="Ordnet die Kacheln nach ihren Räumen in Home Assistant, mit dem Raum als Überschrift">Nach Räumen trennen</button>` : ""}
         <span class="hint">${this._isList()
@@ -1413,6 +1476,8 @@ class EchoStudioPanel extends HTMLElement {
           ? "Tasten antippen zum Gestalten, ziehen zum Tauschen. Nach „Speichern“ übernimmt die Echo Show das Deck gleich; was du dort änderst, erscheint hier von selbst."
           : this._part === "radio"
           ? "Favoriten ziehen zum Sortieren, antippen zum Bearbeiten. Auf der Show kommt ein Sender mit langem Druck oder dem Herz im Player dazu; das erscheint hier von selbst."
+          : this._part === "remote"
+          ? "So sieht die Fernbedienung auf der Echo Show aus. Kacheln links sortieren, entfernen oder dazunehmen; nach „Speichern“ übernimmt die Show sie gleich."
           : this._part === "offers"
           ? "Die Preise sucht die Echo Show selbst bei kaufDA, in der Nähe deines Zuhauses in Home Assistant. Auf der Show merkt der Stern in der Suche ein Produkt; das erscheint hier von selbst."
           : "So sieht das Menü auf der Echo Show aus. Nach „Speichern“ übernimmt sie es gleich."}</span></div></div>
@@ -1436,6 +1501,7 @@ class EchoStudioPanel extends HTMLElement {
     if (this._part === "radio") return this._radioLeftHtml();
     if (this._part === "deck") return this._deckLeftHtml();
     if (this._part === "offers") return this._offersLeftHtml();
+    if (this._part === "remote") return this._remoteLeftHtml();
     if (this._part === "look") {
       const look = this._menu.look;
       return `<label class="hint">Farbthema</label>
@@ -1488,6 +1554,7 @@ class EchoStudioPanel extends HTMLElement {
     if (this._part === "radio") return this._radioPreviewHtml();
     if (this._part === "deck") return this._deckPreviewHtml();
     if (this._part === "offers") return this._offersPreviewHtml();
+    if (this._part === "remote") return this._remotePreviewHtml();
     const look = this._menu.look;
     const [ground, accent, soft, rules] = MENU_COLORS[look.theme || "start"] || MENU_COLORS.start;
     const tabs = this._menuTabsList().filter((t) => t.show !== false);
@@ -1532,6 +1599,11 @@ class EchoStudioPanel extends HTMLElement {
   _menuPropsHtml() {
     if (this._part === "radio") return this._radioPropsHtml();
     if (this._part === "deck") return this._deckPropsHtml();
+    if (this._part === "remote") return `<h2>Fernbedienung</h2><p class="hint">Die Fernbedienung steuert die TV-Box über die
+      Integration „Android TV Remote“ in Home Assistant: Steuerkreuz, Zurück, Home, Lautstärke und die Apps als Kacheln. Auf der Show
+      öffnet sie der Reiter „Fernbedienung“ oder eine Deck-Taste „TV: Fernbedienung öffnen“.</p><p class="hint">Eine App kommt mit ihrem
+      Paketnamen dazu (etwa com.netflix.ninja). Welche App gerade läuft, zeigt die Show oben; so findest du auch den Namen einer App, die
+      hier fehlt: sie auf der Box öffnen und auf der Show ablesen. Ein Link (https://…) öffnet die App, die ihn kennt.</p>`;
     if (this._part === "offers") return `<h2>Angebote</h2><p class="hint">Schreib ein Produkt so, wie du es sagst: Marke und Produkt,
       etwa „Barilla Arrabbiata“ oder „Paulaner Spezi“. Größen und Gebinde („2L“, „Kasten 20x0,5l“) sind Vorlieben: Angebote, die sie
       nennen, stehen vorn. Ein Tippfehler in einem langen Wort ist kein Problem.</p><p class="hint">Die Echo Show fragt alle vier Stunden
@@ -1849,6 +1921,145 @@ class EchoStudioPanel extends HTMLElement {
   // umfärben und verschieben; das kommt hierher zurück. OBS und die PCs mit ihren Schlüsseln bleiben
   // auf der Show; sie sagt nur ihre Namen (echo_studio/deck/info).
 
+  // --- Fernbedienung (Hilal OS): welche TV-Box und welche Apps als Kacheln; screen_ottoman_remote.go. ---
+
+  _remoteFrom(r) {
+    if (!r) return null;
+    return { entity: r.entity || "", apps: (r.apps || []).map((a) => ({ ...a })) };
+  }
+
+  _remoteEnsure() {
+    if (!this._menu.remote) this._menu.remote = { entity: "", apps: TV_APPS.map((a) => ({ ...a })) };
+    if (!this._menu.remote.apps.length) this._menu.remote.apps = TV_APPS.map((a) => ({ ...a }));
+    return this._menu.remote;
+  }
+
+  // Die Kacheln, die gelten: die eigenen oder die üblichen.
+  _remoteApps() {
+    const own = this._menu?.remote?.apps || [];
+    return own.length ? own : TV_APPS;
+  }
+
+  // Die Fernbedienungen in Home Assistant; die der Android TV Remote (sie sagt, welche App läuft) zuerst.
+  _tvRemotes() {
+    const states = this._hass?.states || {};
+    return Object.keys(states).filter((e) => e.startsWith("remote.")).sort((a, b) =>
+      (states[b].attributes?.current_activity !== undefined) - (states[a].attributes?.current_activity !== undefined) || a.localeCompare(b));
+  }
+
+  _tvAppName(id) {
+    if (!id) return "";
+    const a = this._remoteApps().concat(TV_APPS, TV_MORE_APPS).find((x) => x.app === id);
+    if (a) return a.name;
+    const parts = id.split(".").filter((p) => p && !["tv", "android", "app", "com", "de", "org", "net", "ninja", "livingroom", "atv"].includes(p));
+    const last = parts[parts.length - 1] || id;
+    return last.charAt(0).toUpperCase() + last.slice(1);
+  }
+
+  _tvBoxSelect(id, value) {
+    const remotes = this._tvRemotes();
+    return `<select id="${id}"><option value="">Automatisch (${this._esc(remotes[0] ? this._friendly(remotes[0]) : "keine gefunden")})</option>
+      ${remotes.map((e) => `<option value="${this._esc(e)}" ${e === value ? "selected" : ""}>${this._esc(this._friendly(e))} – ${this._esc(e)}</option>`).join("")}</select>`;
+  }
+
+  // Die Felder einer TV-Taste im Deck.
+  _tvFieldsHtml(b) {
+    const a = b.action;
+    if (a === "tv_remote") {
+      return `<div class="hint">Ein Tipp öffnet auf der Show die Fernbedienung (Steuerkreuz, Lautstärke, Apps). Die Apps stellst du unter
+        „Menü → Fernbedienung“ ein.</div>`;
+    }
+    const box = `<label>TV-Box</label>${this._tvBoxSelect("dktvbox", b.entity || "")}`;
+    if (a === "tv_key") {
+      const cur = (b.value || "").toUpperCase().replace(/^KEYCODE_/, "");
+      return `${box}<label>Taste</label><div class="dkapps dktv">${TV_KEYS.map(([k, icon, name]) =>
+        `<button data-tvkey="${k}" class="${k === cur ? "on" : ""}"><ha-icon icon="mdi:${icon}" style="--mdc-icon-size:18px"></ha-icon> ${this._esc(name)}</button>`).join("")}</div>
+        <label>Oder eigene Taste <small class="hint">(Android-Tastenname)</small></label>
+        <input type="text" id="dkvalue" value="${this._esc(b.value || "")}" placeholder="HOME, VOLUME_UP, DPAD_CENTER …" spellcheck="false">`;
+    }
+    const apps = [...this._remoteApps(), ...TV_MORE_APPS.filter((x) => !this._remoteApps().some((y) => y.app === x.app))];
+    return `${box}<label>App</label><div class="dkapps dktv">${apps.map((x) =>
+      `<button data-tvapp="${this._esc(x.app)}" class="${x.app === b.value ? "on" : ""}">${x.icon ? `<ha-icon icon="mdi:${this._esc(x.icon)}" style="--mdc-icon-size:18px"></ha-icon> ` : ""}${this._esc(x.name)}</button>`).join("")}</div>
+      <label>Oder Paketname / Link</label>
+      <input type="text" id="dkvalue" value="${this._esc(b.value || "")}" placeholder="com.netflix.ninja oder https://…" spellcheck="false">`;
+  }
+
+  _remoteLeftHtml() {
+    const r = this._menu.remote || { entity: "", apps: [] };
+    const apps = this._remoteApps();
+    const more = [...TV_APPS, ...TV_MORE_APPS].filter((x) => !apps.some((y) => y.app === x.app));
+    return `<label class="hint">TV-Box</label>${this._tvBoxSelect("rcbox", r.entity)}
+      ${this._tvRemotes().length ? "" : `<p class="hint" style="color:#ff8a80">Home Assistant hat noch keine Fernbedienung: die Integration
+        „Android TV Remote“ hinzufügen.</p>`}
+      <label class="hint" style="display:block;margin-top:16px">Apps <small>(${apps.length} von ${TV_APPS_MAX})</small></label>
+      ${apps.map((x, i) => `<div class="mtabrow rcapp" data-i="${i}">
+        <input type="text" data-act="name" value="${this._esc(x.name)}" maxlength="24" title="Name">
+        <input type="text" data-act="app" value="${this._esc(x.app)}" maxlength="200" title="Paketname oder Link" spellcheck="false" style="flex:1.4">
+        <input type="color" data-act="color" value="${this._esc(x.color || "#546e7a")}" title="Farbe" style="width:34px;padding:0">
+        <button data-act="up" ${i === 0 ? "disabled" : ""} title="Nach vorne">▲</button>
+        <button data-act="del" title="Entfernen">✕</button></div>`).join("")}
+      ${more.length && apps.length < TV_APPS_MAX ? `<label class="hint" style="display:block;margin-top:10px">Dazunehmen</label>
+        <div class="dkapps">${more.map((x) => `<button data-rcadd="${this._esc(x.app)}">${x.icon ? `<ha-icon icon="mdi:${this._esc(x.icon)}" style="--mdc-icon-size:18px"></ha-icon> ` : ""}${this._esc(x.name)}</button>`).join("")}</div>` : ""}
+      ${apps.length < TV_APPS_MAX ? `<div class="row" style="margin-top:8px"><input type="text" id="rcname" placeholder="Name" maxlength="24" style="flex:.8">
+        <input type="text" id="rcpkg" placeholder="Paketname, z. B. com.example.app" spellcheck="false"><button id="rcadd">+ App</button></div>` : ""}
+      ${this._menu.remote?.apps?.length ? `<button id="rcreset" style="margin-top:12px">Übliche Apps wiederherstellen</button>` : ""}`;
+  }
+
+  _remotePreviewHtml() {
+    const apps = this._remoteApps();
+    const tile = (x) => `<div class="rctile" style="--c:${this._esc(x.color || "#546e7a")}"><ha-icon icon="mdi:${this._esc(x.icon || "apps")}"></ha-icon><span>${this._esc(x.name)}</span></div>`;
+    return `<div class="rchead"><ha-icon icon="mdi:remote-tv"></ha-icon><b>Fernbedienung</b><span>Läuft: ${this._esc(apps[0]?.name || "")}</span>
+        <i class="rcround"><ha-icon icon="mdi:power"></ha-icon></i><i class="rcround">×</i></div>
+      <div class="rcbody"><div class="rcleft"><div class="rcpad"><ha-icon class="u" icon="mdi:chevron-up"></ha-icon><ha-icon class="d" icon="mdi:chevron-down"></ha-icon>
+          <ha-icon class="l" icon="mdi:chevron-left"></ha-icon><ha-icon class="r" icon="mdi:chevron-right"></ha-icon><b>OK</b></div>
+          <div class="rcrow"><i><ha-icon icon="mdi:arrow-left"></ha-icon></i><i><ha-icon icon="mdi:home"></ha-icon></i><i><ha-icon icon="mdi:play-pause"></ha-icon></i></div></div>
+        <div class="rcvol"><ha-icon icon="mdi:volume-plus"></ha-icon><ha-icon icon="mdi:volume-off"></ha-icon><ha-icon icon="mdi:volume-minus"></ha-icon></div>
+        <div class="rcapps" style="grid-template-columns:repeat(${apps.length > 8 ? 3 : 2},1fr)">${apps.slice(0, TV_APPS_MAX).map(tile).join("")}</div></div>`;
+  }
+
+  _wireRemoteLeft(left) {
+    const changed = () => { this._renderMenuLeft(); this._edited(); };
+    const add = (x) => {
+      const r = this._remoteEnsure();
+      if (r.apps.length >= TV_APPS_MAX || r.apps.some((y) => y.app === x.app)) return;
+      r.apps.push({ ...x });
+      changed();
+    };
+    left.addEventListener("click", (e) => {
+      const more = e.target.closest("button[data-rcadd]");
+      if (more) { const x = [...TV_APPS, ...TV_MORE_APPS].find((y) => y.app === more.dataset.rcadd); if (x) add(x); return; }
+      if (e.target.id === "rcadd") {
+        const name = (this._el("rcname")?.value || "").trim();
+        const app = (this._el("rcpkg")?.value || "").trim();
+        if (!app) return;
+        add({ name: name || this._tvAppName(app), app, icon: "apps" });
+        return;
+      }
+      if (e.target.id === "rcreset") { if (this._menu.remote) this._menu.remote.apps = []; changed(); return; }
+      const b = e.target.closest(".rcapp button[data-act]");
+      if (!b) return;
+      const r = this._remoteEnsure();
+      const i = Number(b.closest(".rcapp").dataset.i);
+      if (b.dataset.act === "del") r.apps.splice(i, 1);
+      else if (b.dataset.act === "up" && i > 0) [r.apps[i - 1], r.apps[i]] = [r.apps[i], r.apps[i - 1]];
+      if (!r.apps.length) r.apps = []; // leer: die Show nimmt wieder die üblichen
+      changed();
+    });
+    left.addEventListener("change", (e) => {
+      if (e.target.id === "rcbox") { this._remoteEnsure().entity = e.target.value; this._edited(); return; }
+      const row = e.target.closest(".rcapp");
+      if (!row) return;
+      const r = this._remoteEnsure();
+      const x = r.apps[Number(row.dataset.i)];
+      if (!x) return;
+      const v = e.target.value.trim();
+      if (e.target.dataset.act === "name") x.name = v || this._tvAppName(x.app);
+      if (e.target.dataset.act === "app" && v) x.app = v;
+      if (e.target.dataset.act === "color") x.color = v.toLowerCase();
+      changed();
+    });
+  }
+
   // --- Angebote (Hilal OS): die Lieblingsprodukte und die Märkte; die Preise sucht die Show selbst. ---
 
   _offersFrom(o) {
@@ -1982,6 +2193,9 @@ class EchoStudioPanel extends HTMLElement {
       obs_mute: on ? "microphone-off" : "microphone", obs_source: on ? "eye" : "eye-off", pc_keys: "keyboard",
       pc_type: "form-textbox", pc_open: "open-in-app", pc_run: "script-text-play", page: "folder", wol: "power" };
     if (b.action === "ha_toggle" || b.action === "ha_run") return "mdi:" + (ha[dom] || "home-assistant");
+    if (b.action === "tv_key") return "mdi:" + (TV_KEYS.find(([k]) => k === (b.value || "").toUpperCase().replace(/^KEYCODE_/, ""))?.[1] || "remote");
+    if (b.action === "tv_app") return "mdi:apps";
+    if (b.action === "tv_remote") return "mdi:remote-tv";
     if (b.action === "pc_power") return "mdi:" + ({ restart: "restart", sleep: "power-sleep", lock: "lock", menu: "power" }[b.value] || "power-standby");
     return own[b.action] ? "mdi:" + own[b.action] : "";
   }
@@ -2001,6 +2215,9 @@ class EchoStudioPanel extends HTMLElement {
       case "pc_type": return "Text";
       case "pc_open": case "pc_run": return b.value || "";
       case "wol": return b.computer || "Wake on LAN";
+      case "tv_key": return TV_KEYS.find(([k]) => k === (b.value || "").toUpperCase().replace(/^KEYCODE_/, ""))?.[2] || b.value || "";
+      case "tv_app": return this._tvAppName(b.value);
+      case "tv_remote": return "Fernbedienung";
       case "pc_power": return b.value === "menu" ? b.computer || "PC" : DECK_POWER.find(([k]) => k === (b.value || "shutdown"))?.[1] || "";
     }
     return "";
@@ -2185,6 +2402,8 @@ class EchoStudioPanel extends HTMLElement {
         <select id="dkcomputer"><option value="">Ohne Anzeige</option>${pcs.map((c) =>
           `<option ${c === b.computer ? "selected" : ""}>${this._esc(c)}</option>`).join("")}</select>
         <div class="hint">Mit dem Deck-Programm auf dem PC leuchtet die Taste, solange er läuft.</div>`;
+    } else if (a === "tv_key" || a === "tv_app" || a === "tv_remote") {
+      fields = this._tvFieldsHtml(b);
     } else if (a === "page") {
       fields = `<label>Öffnet</label><select id="dkpagego">${this._menu.deck.pages.map((_, i) =>
         `<option value="${i + 1}" ${b.page === i + 1 ? "selected" : ""}>${this._esc(this._deckPageName(i))}</option>`).join("")}</select>`;
@@ -2373,6 +2592,20 @@ class EchoStudioPanel extends HTMLElement {
       this._edited(true);
     });
     on("dkentity", "change", (e) => set({ entity: e.target.value.trim() }, true));
+    on("dktvbox", "change", (e) => set({ entity: e.target.value }, true));
+    this._el("props")?.querySelectorAll(".dktv").forEach((box) => box.addEventListener("click", (e) => {
+      const k = e.target.closest("button[data-tvkey]");
+      const app = e.target.closest("button[data-tvapp]");
+      if (k) {
+        const key = TV_KEYS.find(([x]) => x === k.dataset.tvkey);
+        set({ value: key[0], ...(b.label && !TV_KEYS.some(([, , n]) => n === b.label) ? {} : { label: key[2] }) }, true);
+      } else if (app) {
+        const a = this._remoteApps().concat(TV_MORE_APPS).find((x) => x.app === app.dataset.tvapp);
+        if (!a) return;
+        const own = b.label && !this._remoteApps().concat(TV_MORE_APPS).some((x) => x.name === b.label);
+        set({ value: a.app, ...(own ? {} : { label: a.name, icon: a.icon || "", color: b.color || a.color || "" }) }, true);
+      }
+    }));
     on("dkpagego", "change", (e) => set({ page: Number(e.target.value) }));
     on("dkcomputer", "change", (e) => {
       const pc = e.target.value.trim();
@@ -2462,6 +2695,7 @@ class EchoStudioPanel extends HTMLElement {
     if (!left) return;
     if (this._part === "radio") { this._wireRadioLeft(left); return; }
     if (this._part === "offers") { this._wireOffersLeft(left); return; }
+    if (this._part === "remote") { this._wireRemoteLeft(left); return; }
     if (this._part === "deck") { this._wireDeckLeft(left); return; }
     let typing = null;
     left.addEventListener("input", (e) => {
@@ -2508,7 +2742,7 @@ class EchoStudioPanel extends HTMLElement {
   _wireMenuProps() {
     if (this._part === "radio") { this._wireRadioProps(); return; }
     if (this._part === "deck") { this._wireDeckProps(); return; }
-    if (this._part === "offers") return;
+    if (this._part === "offers" || this._part === "remote") return;
     const on = (id, ev, fn) => { const el = this._el(id); if (el) el.addEventListener(ev, fn); };
     const it = this._item(this._selected);
     if (!it) return;

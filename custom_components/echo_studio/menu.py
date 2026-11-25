@@ -41,6 +41,13 @@ offers: die Angebote der Show (der Bildschirm „Angebote“, Daten von kaufDA),
 favorites sind die Lieblingsprodukte, wie man sie sagt (Marke und Produkt; Größen wie „2L“ oder „Kasten“
 sind Vorlieben), stores die Märkte (leer: Lidl, EDEKA, ALDI SÜD, REWE). Der Stern auf der Show trägt
 selbst ein und aus (echo_studio/offers/save). Fehlt offers, schickt die Show ihre.
+
+remote: die Fernbedienung der TV-Box (Android TV Remote in Home Assistant), optional:
+
+    "remote": {"entity": "remote.box", "apps": [{"name": "Netflix", "app": "com.netflix.ninja", "icon": "netflix", "color": "#b20710"}]}
+
+entity ist die Fernbedienung (fehlt sie, nimmt die Show die, die Home Assistant hat), apps die Kacheln
+(höchstens 12; fehlen sie, zeigt die Show die üblichen): app ist das Paket der App oder ein Link.
 """
 
 from __future__ import annotations
@@ -49,7 +56,7 @@ import re
 from typing import Any
 
 # Die Reiter, die die Echo Show kennt.
-TABS = ("light", "music", "radio", "tv", "football", "cameras", "scenes", "announce", "call", "todo", "deck", "news", "offers")
+TABS = ("light", "music", "radio", "tv", "football", "cameras", "scenes", "announce", "call", "todo", "deck", "news", "offers", "remote")
 
 # Die Märkte, die die Show bei den Angeboten kennt (offers_ottoman_data.go: offerStores).
 OFFER_STORES = ("Lidl", "EDEKA", "ALDI SÜD", "ALDI Nord", "REWE", "Kaufland", "Penny", "Netto", "Norma")
@@ -79,7 +86,7 @@ _ICON = re.compile(r"^mdi:[a-z0-9-]{1,64}$")  # die Echo Show zeichnet im Menü 
 
 # Das Deck.
 DECK_ACTIONS = ("", "ha_toggle", "ha_run", "page", "obs_scene", "obs_stream", "obs_record", "obs_mute",
-                "obs_source", "pc_keys", "pc_type", "pc_open", "pc_run", "wol", "pc_power")
+                "obs_source", "pc_keys", "pc_type", "pc_open", "pc_run", "wol", "pc_power", "tv_key", "tv_app", "tv_remote")
 DECK_NAMED_COLORS = ("", "blue", "green", "red", "orange", "purple", "gray")
 DECK_COLS = (2, 8)
 DECK_ROWS = (1, 5)
@@ -274,7 +281,51 @@ def clean_menu(raw: Any) -> dict[str, Any]:
         "radio": clean_radio(raw.get("radio")),
         **({"deck": deck} if (deck := clean_deck(raw.get("deck"))) is not None else {}),
         **({"offers": offers} if (offers := clean_offers(raw.get("offers"))) is not None else {}),
+        **({"remote": remote} if (remote := clean_remote(raw.get("remote"))) is not None else {}),
     }
+
+
+# Wie viele App-Kacheln die Fernbedienung höchstens hat (remote_ottoman_data.go: remoteAppsMax).
+REMOTE_APPS_MAX = 12
+
+
+def clean_remote(raw: Any) -> dict[str, Any] | None:
+    """Prüft den Teil remote (die Fernbedienung der TV-Box); None, wenn es keinen gibt."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise MenuError("remote ist kein Objekt")
+    out: dict[str, Any] = {}
+    entity = raw.get("entity")
+    if isinstance(entity, str) and entity:
+        if not (_ENTITY.match(entity) and entity.startswith("remote.")):
+            raise MenuError(f"remote.entity ist keine Fernbedienung: {entity!r}")
+        out["entity"] = entity
+    apps_raw = raw.get("apps") or []
+    if not isinstance(apps_raw, list):
+        raise MenuError("remote.apps ist eine Liste")
+    apps: list[dict[str, str]] = []
+    for a in apps_raw:
+        if not isinstance(a, dict):
+            continue
+        app = _text(a.get("app"), 200)
+        if not app or any(x["app"] == app for x in apps):
+            continue
+        item = {"name": _text(a.get("name"), 24) or app, "app": app}
+        icon = a.get("icon")
+        if isinstance(icon, str):
+            icon = icon.strip().removeprefix("mdi:")
+            if _DECK_ICON.match(icon):
+                item["icon"] = icon
+        color = a.get("color")
+        if isinstance(color, str) and _COLOR.match(color):
+            item["color"] = color.lower()
+        apps.append(item)
+        if len(apps) == REMOTE_APPS_MAX:
+            break
+    if apps:
+        out["apps"] = apps
+    return out
 
 
 def clean_offers(raw: Any) -> dict[str, Any] | None:

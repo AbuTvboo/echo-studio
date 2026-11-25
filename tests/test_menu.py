@@ -135,3 +135,38 @@ def test_deck_power_menu_keeps_its_mac():
         {"action": "pc_power", "value": "menu", "mac": "kaputt"}]}]}})
     b = got["deck"]["pages"][0]["buttons"]
     assert b[0]["mac"] == "AA:BB:CC:00:11:22" and "mac" not in b[1]
+
+
+def test_remote_is_kept_and_cleaned():
+    got = menu.clean_menu({"remote": {"entity": "remote.box", "apps": [
+        {"name": "Netflix", "app": "com.netflix.ninja", "icon": "mdi:netflix", "color": "#B20710"},
+        {"name": "Netflix again", "app": "com.netflix.ninja"},
+        {"app": "com.example.iptv", "icon": "<bad>", "color": "red"},
+        "nonsense", {"name": "no app"}]}})
+    assert got["remote"] == {"entity": "remote.box", "apps": [
+        {"name": "Netflix", "app": "com.netflix.ninja", "icon": "netflix", "color": "#b20710"},
+        {"name": "com.example.iptv", "app": "com.example.iptv"}]}
+
+
+def test_remote_absent_or_empty():
+    assert "remote" not in menu.clean_menu({})
+    assert menu.clean_menu({"remote": {}})["remote"] == {}
+
+
+@pytest.mark.parametrize("remote", ["box", {"entity": "light.eck"}, {"apps": "netflix"}])
+def test_remote_rejects(remote):
+    with pytest.raises(menu.MenuError):
+        menu.clean_menu({"remote": remote})
+
+
+def test_remote_apps_are_capped():
+    apps = [{"name": f"A{i}", "app": f"com.a{i}"} for i in range(20)]
+    assert len(menu.clean_menu({"remote": {"apps": apps}})["remote"]["apps"]) == 12
+
+
+def test_deck_keeps_tv_buttons():
+    got = menu.clean_menu({"deck": {"cols": 4, "rows": 3, "pages": [{"buttons": [
+        {"action": "tv_key", "value": "VOLUME_UP", "entity": "remote.box"},
+        {"action": "tv_app", "value": "com.netflix.ninja", "label": "Netflix"},
+        {"action": "tv_remote"}]}]}})
+    assert [b["action"] for b in got["deck"]["pages"][0]["buttons"]] == ["tv_key", "tv_app", "tv_remote"]
