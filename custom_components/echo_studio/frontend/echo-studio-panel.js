@@ -68,8 +68,13 @@ const TV_MORE_APPS = [
   { name: "Twitch", app: "tv.twitch.android.app", icon: "twitch", color: "#9146ff" },
   { name: "Plex", app: "com.plexapp.android", icon: "plex", color: "#e5a00d" },
   { name: "VLC", app: "org.videolan.vlc", icon: "vlc", color: "#ff8800" },
+  { name: "TVBoo", app: "com.tvboo.app", icon: "ghost-play", color: "#0097a7" },
   { name: "Einstellungen", app: "com.android.tv.settings", icon: "cog-outline", color: "#546e7a" }];
 const TV_APPS_MAX = 12;
+// Symbole, die die Show aus zweien zusammensetzt (screen_ottoman_remote.go: remoteIcons); hier zeigt
+// die Vorschau das äußere, eine Deck-Taste nimmt es auch.
+const TV_ICONS = { "ghost-play": "ghost" };
+const tvIcon = (i) => TV_ICONS[i] || i;
 const DECK_COLORS = ["#e53935", "#fb8c00", "#fdd835", "#43a047", "#00acc1", "#1e88e5", "#5e35b1", "#d81b60", "#6d4c41", "#546e7a", "#212121"];
 const DECK_POWER = [["menu", "Auswahl (Fenster)"], ["shutdown", "Herunterfahren"], ["restart", "Neu starten"], ["sleep", "Ruhezustand"], ["lock", "Sperren"]];
 const DECK_TOGGLE = ["light", "switch", "fan", "cover", "input_boolean", "media_player", "lock", "climate"];
@@ -1979,7 +1984,7 @@ class EchoStudioPanel extends HTMLElement {
     }
     const apps = [...this._remoteApps(), ...TV_MORE_APPS.filter((x) => !this._remoteApps().some((y) => y.app === x.app))];
     return `${box}<label>App</label><div class="dkapps dktv">${apps.map((x) =>
-      `<button data-tvapp="${this._esc(x.app)}" class="${x.app === b.value ? "on" : ""}">${x.icon ? `<ha-icon icon="mdi:${this._esc(x.icon)}" style="--mdc-icon-size:18px"></ha-icon> ` : ""}${this._esc(x.name)}</button>`).join("")}</div>
+      `<button data-tvapp="${this._esc(x.app)}" class="${x.app === b.value ? "on" : ""}">${x.icon ? `<ha-icon icon="mdi:${this._esc(tvIcon(x.icon))}" style="--mdc-icon-size:18px"></ha-icon> ` : ""}${this._esc(x.name)}</button>`).join("")}</div>
       <label>Oder Paketname / Link</label>
       <input type="text" id="dkvalue" value="${this._esc(b.value || "")}" placeholder="com.netflix.ninja oder https://…" spellcheck="false">`;
   }
@@ -1999,7 +2004,7 @@ class EchoStudioPanel extends HTMLElement {
         <button data-act="up" ${i === 0 ? "disabled" : ""} title="Nach vorne">▲</button>
         <button data-act="del" title="Entfernen">✕</button></div>`).join("")}
       ${more.length && apps.length < TV_APPS_MAX ? `<label class="hint" style="display:block;margin-top:10px">Dazunehmen</label>
-        <div class="dkapps">${more.map((x) => `<button data-rcadd="${this._esc(x.app)}">${x.icon ? `<ha-icon icon="mdi:${this._esc(x.icon)}" style="--mdc-icon-size:18px"></ha-icon> ` : ""}${this._esc(x.name)}</button>`).join("")}</div>` : ""}
+        <div class="dkapps">${more.map((x) => `<button data-rcadd="${this._esc(x.app)}">${x.icon ? `<ha-icon icon="mdi:${this._esc(tvIcon(x.icon))}" style="--mdc-icon-size:18px"></ha-icon> ` : ""}${this._esc(x.name)}</button>`).join("")}</div>` : ""}
       ${apps.length < TV_APPS_MAX ? `<div class="row" style="margin-top:8px"><input type="text" id="rcname" placeholder="Name" maxlength="24" style="flex:.8">
         <input type="text" id="rcpkg" placeholder="Paketname, z. B. com.example.app" spellcheck="false"><button id="rcadd">+ App</button></div>` : ""}
       ${this._menu.remote?.apps?.length ? `<button id="rcreset" style="margin-top:12px">Übliche Apps wiederherstellen</button>` : ""}`;
@@ -2007,7 +2012,7 @@ class EchoStudioPanel extends HTMLElement {
 
   _remotePreviewHtml() {
     const apps = this._remoteApps();
-    const tile = (x) => `<div class="rctile" style="--c:${this._esc(x.color || "#546e7a")}"><ha-icon icon="mdi:${this._esc(x.icon || "apps")}"></ha-icon><span>${this._esc(x.name)}</span></div>`;
+    const tile = (x) => `<div class="rctile" style="--c:${this._esc(x.color || "#546e7a")}"><ha-icon icon="mdi:${this._esc(tvIcon(x.icon || "apps"))}"></ha-icon><span>${this._esc(x.name)}</span></div>`;
     return `<div class="rchead"><ha-icon icon="mdi:remote-tv"></ha-icon><b>Fernbedienung</b><span>Läuft: ${this._esc(apps[0]?.name || "")}</span>
         <i class="rcround"><ha-icon icon="mdi:power"></ha-icon></i><i class="rcround">×</i></div>
       <div class="rcbody"><div class="rcleft"><div class="rcpad"><ha-icon class="u" icon="mdi:chevron-up"></ha-icon><ha-icon class="d" icon="mdi:chevron-down"></ha-icon>
@@ -2603,7 +2608,7 @@ class EchoStudioPanel extends HTMLElement {
         const a = this._remoteApps().concat(TV_MORE_APPS).find((x) => x.app === app.dataset.tvapp);
         if (!a) return;
         const own = b.label && !this._remoteApps().concat(TV_MORE_APPS).some((x) => x.name === b.label);
-        set({ value: a.app, ...(own ? {} : { label: a.name, icon: a.icon || "", color: b.color || a.color || "" }) }, true);
+        set({ value: a.app, ...(own ? {} : { label: a.name, icon: tvIcon(a.icon || ""), color: b.color || a.color || "" }) }, true);
       }
     }));
     on("dkpagego", "change", (e) => set({ page: Number(e.target.value) }));
