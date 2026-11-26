@@ -86,7 +86,7 @@ _ICON = re.compile(r"^mdi:[a-z0-9-]{1,64}$")  # die Echo Show zeichnet im Menü 
 
 # Das Deck.
 DECK_ACTIONS = ("", "ha_toggle", "ha_run", "page", "obs_scene", "obs_stream", "obs_record", "obs_mute",
-                "obs_source", "pc_keys", "pc_type", "pc_open", "pc_run", "wol", "pc_power", "tv_key", "tv_app", "tv_remote")
+                "obs_source", "pc_keys", "pc_type", "pc_open", "pc_run", "wol", "pc_power", "tv_key", "tv_app", "tv_remote", "hyperion")
 DECK_NAMED_COLORS = ("", "blue", "green", "red", "orange", "purple", "gray")
 DECK_COLS = (2, 8)
 DECK_ROWS = (1, 5)

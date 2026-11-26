@@ -43,7 +43,8 @@ const DECK_ACTIONS = [["", "Leer"], ["ha_toggle", "Home Assistant: an/aus"], ["h
   ["page", "Seite öffnen (Ordner)"], ["wol", "PC einschalten (Wake on LAN)"], ["pc_keys", "PC: Tastenkürzel"], ["pc_type", "PC: Text tippen"], ["pc_open", "PC: App oder Webseite öffnen"],
   ["pc_run", "PC: Skript ausführen"], ["pc_power", "PC: Herunterfahren, Neustart, Ruhezustand, Sperren"], ["obs_scene", "OBS: Szene wechseln"], ["obs_stream", "OBS: Stream an/aus"],
   ["obs_record", "OBS: Aufnahme an/aus"], ["obs_mute", "OBS: Ton stumm/an"], ["obs_source", "OBS: Quelle zeigen/verbergen"],
-  ["tv_key", "TV: Taste der Fernbedienung"], ["tv_app", "TV: App öffnen"], ["tv_remote", "TV: Fernbedienung öffnen"]];
+  ["tv_key", "TV: Taste der Fernbedienung"], ["tv_app", "TV: App öffnen"], ["tv_remote", "TV: Fernbedienung öffnen"],
+  ["hyperion", "Ambilight (Hyperion): an/aus und Stimmungslicht"]];
 // Die TV-Box (Hilal OS, Android TV Remote in Home Assistant): ihre Tasten wie deck/tv.go TVKeys, und die
 // App-Kacheln der Fernbedienung, solange keine eigenen eingestellt sind (remote_ottoman_data.go).
 const TV_KEYS = [["POWER", "power", "An/Aus"], ["DPAD_UP", "chevron-up", "Hoch"], ["DPAD_DOWN", "chevron-down", "Runter"],
@@ -1952,6 +1953,13 @@ class EchoStudioPanel extends HTMLElement {
       (states[b].attributes?.current_activity !== undefined) - (states[a].attributes?.current_activity !== undefined) || a.localeCompare(b));
   }
 
+  // Die Lichter von Hyperion: sie kennen Hyperions Effekte (Candle, Rainbow swirl …).
+  _hyperionLights() {
+    const states = this._hass?.states || {};
+    return Object.keys(states).filter((e) => e.startsWith("light.") && (states[e].attributes?.effect_list || [])
+      .some((x) => ["Rainbow swirl", "Candle", "Knight rider"].includes(x))).sort();
+  }
+
   _tvAppName(id) {
     if (!id) return "";
     const a = this._remoteApps().concat(TV_APPS, TV_MORE_APPS).find((x) => x.app === id);
@@ -2201,6 +2209,7 @@ class EchoStudioPanel extends HTMLElement {
     if (b.action === "tv_key") return "mdi:" + (TV_KEYS.find(([k]) => k === (b.value || "").toUpperCase().replace(/^KEYCODE_/, ""))?.[1] || "remote");
     if (b.action === "tv_app") return "mdi:apps";
     if (b.action === "tv_remote") return "mdi:remote-tv";
+    if (b.action === "hyperion") return "mdi:television-ambient-light";
     if (b.action === "pc_power") return "mdi:" + ({ restart: "restart", sleep: "power-sleep", lock: "lock", menu: "power" }[b.value] || "power-standby");
     return own[b.action] ? "mdi:" + own[b.action] : "";
   }
@@ -2209,7 +2218,7 @@ class EchoStudioPanel extends HTMLElement {
   _deckLabel(b) {
     if (b.label) return b.label;
     switch (b.action) {
-      case "ha_toggle": case "ha_run": return b.entity ? this._friendly(b.entity) : "";
+      case "ha_toggle": case "ha_run": case "hyperion": return b.entity ? this._friendly(b.entity) : "";
       case "page": return b.page ? this._deckPageName(b.page - 1) : "";
       case "obs_scene": return b.scene || "";
       case "obs_stream": return "Stream";
@@ -2407,6 +2416,15 @@ class EchoStudioPanel extends HTMLElement {
         <select id="dkcomputer"><option value="">Ohne Anzeige</option>${pcs.map((c) =>
           `<option ${c === b.computer ? "selected" : ""}>${this._esc(c)}</option>`).join("")}</select>
         <div class="hint">Mit dem Deck-Programm auf dem PC leuchtet die Taste, solange er läuft.</div>`;
+    } else if (a === "hyperion") {
+      const lights = this._hyperionLights();
+      fields = `<label>Hyperion-Licht</label>
+        <select id="dkhyperion">${(lights.includes(b.entity) || !b.entity ? lights : [b.entity, ...lights]).map((e) =>
+          `<option value="${this._esc(e)}" ${e === b.entity ? "selected" : ""}>${this._esc(this._friendly(e))} – ${this._esc(e)}</option>`).join("")}</select>
+        ${lights.length ? "" : `<div class="hint" style="color:#ff8a80">Home Assistant hat kein Hyperion-Licht: die Integration „Hyperion“ hinzufügen.</div>`}
+        <div class="hint">Ein Tipp auf der Show öffnet ein Fenster: Ambilight (das Fernsehbild auf den LEDs) an und aus, darunter
+          Stimmungslichter wie Warmweiß, Kerze, Feuer, Meer oder Farben, und die Helligkeit. Ein Stimmungslicht schaltet Ambilight dafür aus.
+          Die Taste leuchtet, solange Ambilight oder ein Stimmungslicht an ist.</div>`;
     } else if (a === "tv_key" || a === "tv_app" || a === "tv_remote") {
       fields = this._tvFieldsHtml(b);
     } else if (a === "page") {
@@ -2588,6 +2606,7 @@ class EchoStudioPanel extends HTMLElement {
       for (const k of Object.keys(b)) delete b[k];
       if (a) Object.assign(b, { action: a }, Object.fromEntries(Object.entries(keep).filter(([, v]) => v)));
       if (a === "page") b.page = Math.min(2, this._menu.deck.pages.length);
+      if (a === "hyperion" && this._hyperionLights().length) b.entity = this._hyperionLights()[0];
       if (a.startsWith("pc_") && this._deckInfo?.computers?.length) b.computer = this._deckInfo.computers[0];
       if (a === "pc_power") {
         b.value = "menu";
@@ -2598,6 +2617,7 @@ class EchoStudioPanel extends HTMLElement {
     });
     on("dkentity", "change", (e) => set({ entity: e.target.value.trim() }, true));
     on("dktvbox", "change", (e) => set({ entity: e.target.value }, true));
+    on("dkhyperion", "change", (e) => set({ entity: e.target.value }, true));
     this._el("props")?.querySelectorAll(".dktv").forEach((box) => box.addEventListener("click", (e) => {
       const k = e.target.closest("button[data-tvkey]");
       const app = e.target.closest("button[data-tvapp]");

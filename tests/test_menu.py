@@ -170,3 +170,9 @@ def test_deck_keeps_tv_buttons():
         {"action": "tv_app", "value": "com.netflix.ninja", "label": "Netflix"},
         {"action": "tv_remote"}]}]}})
     assert [b["action"] for b in got["deck"]["pages"][0]["buttons"]] == ["tv_key", "tv_app", "tv_remote"]
+
+
+def test_deck_keeps_hyperion_button():
+    got = menu.clean_menu({"deck": {"cols": 4, "rows": 3, "pages": [{"buttons": [
+        {"action": "hyperion", "entity": "light.ambilighttv", "label": "Ambilight"}]}]}})
+    assert got["deck"]["pages"][0]["buttons"][0] == {"action": "hyperion", "entity": "light.ambilighttv", "label": "Ambilight"}
