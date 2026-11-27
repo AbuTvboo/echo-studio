@@ -72,6 +72,15 @@ const TV_MORE_APPS = [
   { name: "TVBoo", app: "com.tvboo.app", icon: "ghost-play", color: "#0097a7" },
   { name: "Einstellungen", app: "com.android.tv.settings", icon: "cog-outline", color: "#546e7a" }];
 const TV_APPS_MAX = 12;
+// Die Plätze des Ezans (Hilal OS, ezan_ottoman.go): der allgemeine, dann je Gebet einer, mit dem Makam,
+// in dem es üblicherweise gerufen wird.
+const EZAN_SLOTS = [
+  ["file", "Allgemeiner Ezan <small>(für Gebete ohne eigene Aufnahme)</small>", "Noch keine Datei."],
+  ["fajr", "İmsak / Sabah <small>(Saba)</small>", "Keine eigene: der allgemeine Ezan."],
+  ["dhuhr", "Öğle <small>(Uşşak)</small>", "Keine eigene: der allgemeine Ezan."],
+  ["asr", "İkindi <small>(Hicaz)</small>", "Keine eigene: der allgemeine Ezan."],
+  ["maghrib", "Akşam <small>(Segah)</small>", "Keine eigene: der allgemeine Ezan."],
+  ["isha", "Yatsı <small>(Rast)</small>", "Keine eigene: der allgemeine Ezan."]];
 // Symbole, die die Show aus zweien zusammensetzt (screen_ottoman_remote.go: remoteIcons); hier zeigt
 // die Vorschau das äußere, eine Deck-Taste nimmt es auch.
 const TV_ICONS = { "ghost-play": "ghost" };
@@ -235,7 +244,8 @@ input[type=search], input[type=text], input[type=password], select { width:100%;
 .ezhead { font-size:20px; font-weight:700; margin-bottom:10px; color:#f4a93c; }
 .ezrow { display:flex; align-items:center; gap:12px; padding:9px 0; border-top:1px solid rgba(255,255,255,.08); font-size:17px; }
 .ezrow b { width:80px; } .ezrow .t { width:70px; font-variant-numeric:tabular-nums; } .ezrow .w { flex:1; text-align:right; color:#a9b6c3; }
-.ezrow .w.on { color:#4fd1c5; }
+.ezrow .w.on { color:#4fd1c5; } .ezrow .w { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ezslot { margin-top:14px; padding-top:10px; border-top:1px solid rgba(127,127,127,.25); }
 /* Die Fernbedienung (Hilal OS): ihre Vorschau wie screen_ottoman_remote.go, in Einheiten der Show (960 breit). */
 .rcscreen { --u:0.10417cqw; aspect-ratio:16/10; overflow:hidden; background:linear-gradient(180deg,#14212d,#0b1520); color:#eef3f6;
   padding:calc(var(--u)*14) calc(var(--u)*16); display:flex; flex-direction:column; gap:calc(var(--u)*26);
@@ -1623,9 +1633,9 @@ class EchoStudioPanel extends HTMLElement {
     if (this._part === "deck") return this._deckPropsHtml();
     if (this._part === "ezan") return `<h2>Ezan</h2><p class="hint">Die Echo Show ruft zu allen fünf Gebeten den Ezan: İmsak, Öğle,
       İkindi, Akşam und Yatsı. Läuft gerade Musik oder Radio, hält sie an und geht nach dem Ezan weiter.</p><p class="hint">Lade deine
-      Lieblingsaufnahme als MP3 hoch (bis 12 MB). Für İmsak kannst du eine eigene nehmen, etwa den Sabah-Ezan; ohne sie gilt die erste.
+      Aufnahmen als MP3 hoch (bis 12 MB): je Gebet eine eigene in seinem Makam, und eine allgemeine für die Gebete ohne eigene.
       Die Show speichert die Dateien bei sich, der Ezan kommt also auch, wenn Home Assistant gerade nicht antwortet.</p>
-      <p class="hint">„Auf der Show testen“ speichert und spielt den Ezan einmal auf der Show.</p>`;
+      <p class="hint">▶ neben einer Aufnahme speichert und spielt sie einmal auf der Show.</p>`;
     if (this._part === "remote") return `<h2>Fernbedienung</h2><p class="hint">Die Fernbedienung steuert die TV-Box über die
       Integration „Android TV Remote“ in Home Assistant: Steuerkreuz, Zurück, Home, Lautstärke und die Apps als Kacheln. Auf der Show
       öffnet sie der Reiter „Fernbedienung“ oder eine Deck-Taste „TV: Fernbedienung öffnen“.</p><p class="hint">Eine App kommt mit ihrem
@@ -1959,22 +1969,24 @@ class EchoStudioPanel extends HTMLElement {
 
   _ezanLeftHtml() {
     const e = this._menu.ezan || {};
-    const file = (key, title, hint) => {
+    const slot = ([key, title, hint]) => {
       const url = e[key] ? this._url(e[key]) : "";
-      return `<label class="hint" style="display:block;margin-top:16px">${title}</label>
+      const play = e[key] || (key !== "file" && e.file);
+      return `<div class="ezslot"><label class="hint" style="display:block">${title}</label>
         ${e[key] ? `<div class="hint">🎵 ${this._esc(e[key + "_name"] || e[key])}</div>
-          ${url ? `<audio controls preload="none" src="${this._esc(url)}" style="width:100%;margin:6px 0"></audio>` : ""}` : `<div class="hint">${hint}</div>`}
+          ${url ? `<audio controls preload="none" src="${this._esc(url)}" style="width:100%;margin:6px 0"></audio>` : ""}`
+          : `<div class="hint">${hint}</div>`}
         <div class="row" style="margin-top:6px"><input type="file" accept="audio/mpeg,.mp3" data-ezfile="${key}" style="flex:1">
-          ${e[key] && key === "fajr" ? `<button data-ezdel="${key}">Entfernen</button>` : ""}</div>`;
+          ${e[key] && key !== "file" ? `<button data-ezdel="${key}" title="Entfernen">✕</button>` : ""}
+          <button data-eztest="${key}" ${play ? "" : "disabled"} title="Auf der Show testen">▶</button></div></div>`;
     };
     const vol = e.volume || 0;
     return `<label class="ochk"><input type="checkbox" id="ezon" ${e.off ? "" : "checked"}> Ezan zu den Gebetszeiten</label>
-      ${file("file", "Ezan (alle Gebete)", "Noch keine Datei: lade eine MP3 hoch.")}
-      ${file("fajr", "Eigener Ezan für İmsak <small>(optional)</small>", "Keiner: İmsak nimmt den Ezan oben.")}
+      ${EZAN_SLOTS.map(slot).join("")}
       ${this._ezanBusy ? `<p class="hint">Wird hochgeladen …</p>` : ""}
       <label class="hint" style="display:block;margin-top:16px">Lautstärke: <b id="ezvoll">${vol ? vol + " %" : "wie die Show gerade steht"}</b></label>
       <input type="range" id="ezvol" min="0" max="100" step="5" value="${vol}" style="width:100%">
-      <button id="eztest" style="margin-top:14px" ${e.file ? "" : "disabled"}>▶ Auf der Show testen</button>`;
+      <p class="hint">▶ speichert und spielt die Aufnahme einmal auf der Show.</p>`;
   }
 
   // Die Vorschau: die Gebetszeiten von heute, wie Home Assistant sie hat.
@@ -1987,9 +1999,10 @@ class EchoStudioPanel extends HTMLElement {
         && states[x].attributes?.device_class === "timestamp");
       const t = id ? new Date(states[id].state) : null;
       const time = t && !isNaN(t) ? t.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "--:--";
-      const on = e.file && !e.off;
-      const which = k === "fajr" && e.fajr ? "eigener Ezan" : on ? "Ezan" : "still";
-      return `<div class="ezrow"><b>${name}</b><span class="t">${time}</span><span class="w ${on ? "on" : ""}">${on ? "🔊 " : "🔇 "}${which}</span></div>`;
+      const file = e[k] || e.file;
+      const on = !!file && !e.off;
+      const which = !on ? "still" : e[k] ? (e[k + "_name"] || "eigene Aufnahme").replace(/\.mp3$/i, "") : "allgemeiner Ezan";
+      return `<div class="ezrow"><b>${name}</b><span class="t">${time}</span><span class="w ${on ? "on" : ""}">${on ? "🔊 " : "🔇 "}${this._esc(which)}</span></div>`;
     }).join("");
     return `<div class="ezcard"><div class="ezhead">🕌 Gebetszeiten heute</div>${rows}
       ${Object.keys(states).some((x) => /_(fajr|dhuhr|isha)/.test(x)) ? "" : `<p class="hint">Home Assistant hat keine Gebetszeiten: die Integration
@@ -2033,8 +2046,11 @@ class EchoStudioPanel extends HTMLElement {
     left.addEventListener("click", async (ev) => {
       const del = ev.target.closest("button[data-ezdel]");
       if (del) { const e = this._ezanEnsure(); delete e[del.dataset.ezdel]; delete e[del.dataset.ezdel + "_name"]; this._edited(false); this._renderMenuLeft(); return; }
-      if (ev.target.id === "eztest") {
-        this._ezanEnsure().test = Date.now();
+      const test = ev.target.closest("button[data-eztest]");
+      if (test) {
+        const e = this._ezanEnsure();
+        e.test = Date.now();
+        if (test.dataset.eztest === "file") delete e.test_kind; else e.test_kind = test.dataset.eztest;
         this._edited(false);
         await this._save();
       }

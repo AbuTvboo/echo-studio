@@ -46,9 +46,10 @@ ezan: der Gebetsruf der Show zu den fünf Gebetszeiten, optional:
 
     "ezan": {"file": "<24 hex>.mp3", "file_name": "Ezan Mekke.mp3", "fajr": "<24 hex>.mp3", "volume": 60, "off": false}
 
-file ist die hochgeladene MP3 (echo_studio/audio), fajr eine eigene für İmsak (fehlt sie, gilt file), volume
+file ist die hochgeladene MP3 (echo_studio/audio) für die Gebete ohne eigene; fajr, dhuhr, asr, maghrib und
+isha sind je eine eigene für İmsak, Öğle, İkindi, Akşam und Yatsı (fehlt sie, gilt file); volume
 die Lautstärke in Prozent (0: wie die Show gerade steht), test ein Zeitstempel in ms: die Show spielt den
-Ezan einmal, wenn er neu und nicht älter als zwei Minuten ist.
+Ezan einmal, wenn er neu und nicht älter als zwei Minuten ist; test_kind sagt, welches Gebets Aufnahme.
 
 remote: die Fernbedienung der TV-Box (Android TV Remote in Home Assistant), optional:
 
@@ -294,6 +295,9 @@ def clean_menu(raw: Any) -> dict[str, Any]:
     }
 
 
+# Die Plätze des Ezans: der allgemeine, dann je Gebet einer (wie die Show sie nennt).
+EZAN_KEYS = ("file", "fajr", "dhuhr", "asr", "maghrib", "isha")
+
 _EZAN_FILE = re.compile(r"^[0-9a-f]{24}\.mp3$")
 
 
@@ -304,7 +308,7 @@ def clean_ezan(raw: Any) -> dict[str, Any] | None:
     if not isinstance(raw, dict):
         raise MenuError("ezan ist kein Objekt")
     out: dict[str, Any] = {}
-    for key in ("file", "fajr"):
+    for key in EZAN_KEYS:
         v = raw.get(key)
         if v in (None, ""):
             continue
@@ -324,13 +328,15 @@ def clean_ezan(raw: Any) -> dict[str, Any] | None:
     test = raw.get("test")
     if isinstance(test, int) and not isinstance(test, bool) and test > 0:
         out["test"] = test
+        if raw.get("test_kind") in EZAN_KEYS[1:]:
+            out["test_kind"] = raw["test_kind"]
     return out
 
 
 def ezan_files(menu: dict[str, Any]) -> set[str]:
     """Die MP3-Dateien, die das Menü für den Ezan braucht."""
     ezan = menu.get("ezan") or {}
-    return {ezan[k] for k in ("file", "fajr") if ezan.get(k)}
+    return {ezan[k] for k in EZAN_KEYS if ezan.get(k)}
 
 
 # Wie viele App-Kacheln die Fernbedienung höchstens hat (remote_ottoman_data.go: remoteAppsMax).

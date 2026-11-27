@@ -190,3 +190,11 @@ def test_ezan_is_kept_and_cleaned():
 def test_ezan_rejects(ezan):
     with pytest.raises(menu.MenuError):
         menu.clean_menu({"ezan": ezan})
+
+
+def test_ezan_per_prayer():
+    a, b = "a" * 24 + ".mp3", "b" * 24 + ".mp3"
+    got = menu.clean_menu({"ezan": {"file": a, "asr": b, "asr_name": "İkindi Hicaz.mp3", "test": 5, "test_kind": "asr"}})
+    assert got["ezan"] == {"file": a, "asr": b, "asr_name": "İkindi Hicaz.mp3", "test": 5, "test_kind": "asr"}
+    assert menu.ezan_files(got) == {a, b}
+    assert "test_kind" not in menu.clean_menu({"ezan": {"file": a, "test": 5, "test_kind": "nope"}})["ezan"]
