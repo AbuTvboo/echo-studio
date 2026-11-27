@@ -395,9 +395,19 @@ class StudioAudioView(HomeAssistantView):
             return self.json_message("Echo Studio ist nicht eingerichtet", status_code=404)
         if user is None or not user.is_admin:
             return self.json_message("Nur für Administratoren", status_code=403)
-        raw = await request.content.read(MAX_AUDIO_BYTES + 1)
-        if not raw or len(raw) > MAX_AUDIO_BYTES:
-            return self.json_message("Die Datei ist leer oder größer als 12 MB", status_code=400)
+        # Die ganze Datei: content.read(n) gibt nur, was gerade angekommen ist (ein paar KB).
+        if (request.content_length or 0) > MAX_AUDIO_BYTES:
+            return self.json_message("Die Datei ist größer als 12 MB", status_code=400)
+        buf = bytearray()
+        async for chunk in request.content.iter_chunked(64 * 1024):
+            buf.extend(chunk)
+            if len(buf) > MAX_AUDIO_BYTES:
+                return self.json_message("Die Datei ist größer als 12 MB", status_code=400)
+        raw = bytes(buf)
+        if not raw:
+            return self.json_message("Die Datei ist leer", status_code=400)
+        if request.content_length and len(raw) != request.content_length:
+            return self.json_message("Die Datei kam nicht ganz an, bitte noch einmal", status_code=400)
         if not is_mp3(raw):
             return self.json_message("Das ist keine MP3-Datei", status_code=400)
         name = hashlib.sha256(raw).hexdigest()[:24] + AUDIO_SUFFIX
