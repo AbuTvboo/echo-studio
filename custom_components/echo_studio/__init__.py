@@ -29,6 +29,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.storage import Store
 
 from .const import (
+    AUDIO_SUFFIX,
+    AUDIO_URL,
     DOMAIN,
     EVENT_MENU_UPDATED,
     EVENT_UPDATED,
@@ -36,6 +38,7 @@ from .const import (
     FILES_URL,
     IMAGE_TYPES,
     LABEL,
+    MAX_AUDIO_BYTES,
     MAX_IMAGE_BYTES,
     MENU_STORAGE_KEY,
     PANEL_ELEMENT,
@@ -47,7 +50,7 @@ from .const import (
     STORAGE_VERSION,
 )
 from .layout import LayoutError, clean_layout, files_in
-from .menu import MenuError, clean_deck_info, clean_menu, radio_favorite
+from .menu import MenuError, clean_deck_info, clean_menu, ezan_files, radio_favorite
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -94,6 +97,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         ws_deck_save, ws_deck_hello, ws_deck_info, ws_offers_save, ws_image_upload, ws_info):
             websocket_api.async_register_command(hass, handler)
         hass.http.register_view(StudioFileView())
+        hass.http.register_view(StudioAudioView())
         await hass.http.async_register_static_paths(
             [StaticPathConfig(STATIC_URL, str(FRONTEND_DIR), cache_headers=False)]
         )
@@ -194,8 +198,11 @@ async def ws_menu_save(hass: HomeAssistant, connection: websocket_api.ActiveConn
     except MenuError as err:
         connection.send_error(msg["id"], "invalid_menu", str(err))
         return
+    unused = ezan_files(data.menu) - ezan_files(menu)  # ein ersetzter Ezan: die alte Datei weg
     data.menu = menu
     await data.menu_store.async_save(menu)
+    if unused:
+        await hass.async_add_executor_job(_remove_files, data.files, unused)
     hass.bus.async_fire(EVENT_MENU_UPDATED, {"tabs": len(menu["tabs"])})
     connection.send_result(msg["id"], menu)
 
@@ -355,9 +362,44 @@ class StudioFileView(HomeAssistantView):
     async def get(self, request: web.Request, name: str) -> web.StreamResponse:
         hass = request.app[KEY_HASS]
         data = _data(hass)
-        if data is None or "/" in name or name.startswith(".") or Path(name).suffix not in IMAGE_TYPES.values():
+        suffix = Path(name).suffix
+        if data is None or "/" in name or name.startswith(".") or (suffix not in IMAGE_TYPES.values() and suffix != AUDIO_SUFFIX):
             return web.Response(status=404)
         path = data.files / name
         if not await hass.async_add_executor_job(path.is_file):
             return web.Response(status=404)
         return web.FileResponse(path, headers={"Cache-Control": "private, max-age=86400"})
+
+
+def is_mp3(raw: bytes) -> bool:
+    """Ob raw eine MP3 ist: ein ID3-Kopf oder der Anfang eines Layer-III-Rahmens."""
+    if raw[:3] == b"ID3":
+        return True
+    head = raw[:4096]
+    return any(head[i] == 0xFF and head[i + 1] & 0xE0 == 0xE0 and (head[i + 1] >> 1) & 0x03 == 0x01
+               for i in range(len(head) - 1))
+
+
+class StudioAudioView(HomeAssistantView):
+    """Nimmt eine MP3 an (der Ezan) und gibt ihren Dateinamen zurück: gleiche Datei, gleicher Name."""
+
+    url = AUDIO_URL
+    name = "api:echo_studio:audio"
+    requires_auth = True
+
+    async def post(self, request: web.Request) -> web.Response:
+        hass = request.app[KEY_HASS]
+        data = _data(hass)
+        user = request.get("hass_user")
+        if data is None:
+            return self.json_message("Echo Studio ist nicht eingerichtet", status_code=404)
+        if user is None or not user.is_admin:
+            return self.json_message("Nur für Administratoren", status_code=403)
+        raw = await request.content.read(MAX_AUDIO_BYTES + 1)
+        if not raw or len(raw) > MAX_AUDIO_BYTES:
+            return self.json_message("Die Datei ist leer oder größer als 12 MB", status_code=400)
+        if not is_mp3(raw):
+            return self.json_message("Das ist keine MP3-Datei", status_code=400)
+        name = hashlib.sha256(raw).hexdigest()[:24] + AUDIO_SUFFIX
+        await hass.async_add_executor_job(_write_file, data.files / name, raw)
+        return self.json({"file": name, "bytes": len(raw)})

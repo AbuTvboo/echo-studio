@@ -227,6 +227,15 @@ input[type=search], input[type=text], input[type=password], select { width:100%;
 .mtile.sel { outline:3px solid #fff; outline-offset:2px; }
 .mtile.drop, .mhead.drop { box-shadow:calc(var(--u)*-6) 0 0 0 #fff; }
 /* Das Deck: wie drawer_ottoman_deck.go, dunkel wie Macro Deck */
+/* Der Ezan (Hilal OS): die Gebetszeiten von heute als Vorschau. */
+.ezscreen { aspect-ratio:16/10; overflow:auto; background:linear-gradient(180deg,#14212d,#0b1520); color:#eef3f6; padding:24px;
+  display:flex; align-items:center; justify-content:center; font-family:var(--paper-font-body1_-_font-family, Roboto, sans-serif); }
+.ezcard { width:min(460px,100%); background:linear-gradient(180deg,#22313f,#1a2733); border-radius:18px; padding:18px 20px;
+  box-shadow:0 6px 18px rgba(0,0,0,.4); }
+.ezhead { font-size:20px; font-weight:700; margin-bottom:10px; color:#f4a93c; }
+.ezrow { display:flex; align-items:center; gap:12px; padding:9px 0; border-top:1px solid rgba(255,255,255,.08); font-size:17px; }
+.ezrow b { width:80px; } .ezrow .t { width:70px; font-variant-numeric:tabular-nums; } .ezrow .w { flex:1; text-align:right; color:#a9b6c3; }
+.ezrow .w.on { color:#4fd1c5; }
 /* Die Fernbedienung (Hilal OS): ihre Vorschau wie screen_ottoman_remote.go, in Einheiten der Show (960 breit). */
 .rcscreen { --u:0.10417cqw; aspect-ratio:16/10; overflow:hidden; background:linear-gradient(180deg,#14212d,#0b1520); color:#eef3f6;
   padding:calc(var(--u)*14) calc(var(--u)*16); display:flex; flex-direction:column; gap:calc(var(--u)*26);
@@ -481,7 +490,7 @@ class EchoStudioPanel extends HTMLElement {
         this._menu = { tabs: (m.tabs || []).map((t) => ({ ...t })), light: (m.light || []).map((i) => ({ ...i })),
           scenes: (m.scenes || []).map((i) => ({ ...i })), look: { theme: m.look?.theme || "", columns: m.look?.columns || 0 },
           radio: this._radioFrom(m.radio), deck: this._deckFrom(m.deck), offers: this._offersFrom(m.offers),
-          remote: this._remoteFrom(m.remote) };
+          remote: this._remoteFrom(m.remote), ezan: this._ezanFrom(m.ezan) };
         try { this._deckInfo = await ws({ type: "echo_studio/deck/info" }); } catch (_) { this._deckInfo = null; }
         this._radioKnown = !!m.radio; // ein Echo Studio, das das Radio schon kennt
         this._menuOK = true;
@@ -630,10 +639,12 @@ class EchoStudioPanel extends HTMLElement {
         }) };
         if (!menu.offers) delete menu.offers; // noch keine: die Show schickt ihre
         if (!menu.remote) delete menu.remote; // noch nichts eingestellt: die Show nimmt die üblichen Apps
+        if (!menu.ezan) delete menu.ezan; // noch kein Ezan
         const saved = await this._hass.callWS({ type: "echo_studio/menu/save", menu });
         const keepNew = this._deckNew ? this._menu.deck : null;
         this._menu = { tabs: saved.tabs, light: saved.light, scenes: saved.scenes, look: saved.look, radio: this._radioFrom(saved.radio),
-          deck: this._deckFrom(saved.deck) || keepNew, offers: this._offersFrom(saved.offers), remote: this._remoteFrom(saved.remote) };
+          deck: this._deckFrom(saved.deck) || keepNew, offers: this._offersFrom(saved.offers), remote: this._remoteFrom(saved.remote),
+          ezan: this._ezanFrom(saved.ezan) };
         if (this._mode === "menu") this._useList();
         this._menuDirty = false;
       }
@@ -799,6 +810,7 @@ class EchoStudioPanel extends HTMLElement {
       .then((r) => {
         this._signed[file] = r.path;
         this._renderPreview();
+        if (this._mode === "menu" && this._part === "ezan") this._renderMenuLeft(); // die Hörprobe
         const it = this._item(this._selected);
         if (it && (it.image === file || it.icon_image === file)) this._renderProps();
       })
@@ -1457,14 +1469,14 @@ class EchoStudioPanel extends HTMLElement {
   _useList() {
     if (this._mode !== "menu") { this._items = this._cards; return; }
     if (this._part === "deck") { this._items = this._deckButtons(); return; }
-    if (this._part === "offers" || this._part === "remote") { this._items = []; return; }
+    if (this._part === "offers" || this._part === "remote" || this._part === "ezan") { this._items = []; return; }
     this._items = this._part === "scenes" ? this._menu.scenes : this._part === "radio" ? this._menu.radio.favorites : this._menu.light;
   }
 
   _isList() { return this._part === "light" || this._part === "scenes"; }
 
   _menuMainHtml() {
-    const parts = [["light", "Licht"], ["scenes", "Szenen"], ["radio", "Radio"], ["deck", "Deck"], ["offers", "Angebote"], ["remote", "Fernbedienung"], ["tabs", "Reiter"], ["look", "Aussehen"]];
+    const parts = [["light", "Licht"], ["scenes", "Szenen"], ["radio", "Radio"], ["deck", "Deck"], ["offers", "Angebote"], ["remote", "Fernbedienung"], ["ezan", "Ezan"], ["tabs", "Reiter"], ["look", "Aussehen"]];
     return `<div class="main">
       <div class="pane" id="devpane"><h2>Menü der Echo Show</h2>
         <div class="seg mparts" id="mparts">${parts.map(([k, t]) => `<button data-part="${k}" class="${this._part === k ? "on" : ""}">${t}</button>`).join("")}</div>
@@ -1473,7 +1485,7 @@ class EchoStudioPanel extends HTMLElement {
         ${this._isList() && this._suggested?.[this._part] && !this._menuDirty ? `<p class="hint" style="margin:0 4px 10px">Das zeigt die Echo Show
           gerade (alle Geräte mit dem Label „echo“). Sortiere, ergänze Überschriften oder Farben und tippe auf „Speichern“, dann
           gilt es als eigene Liste.</p>` : ""}
-        <div class="screen"><div class="${this._part === "radio" ? "rpage" : this._part === "deck" ? "dkscreen" : this._part === "remote" ? "rcscreen" : "mscreen"}" id="grid"></div></div>
+        <div class="screen"><div class="${this._part === "radio" ? "rpage" : this._part === "deck" ? "dkscreen" : this._part === "remote" ? "rcscreen" : this._part === "ezan" ? "ezscreen" : "mscreen"}" id="grid"></div></div>
         <div class="actions">${this._isList() ? `<button id="addheading">+ Überschrift</button>
           <button id="byroom" title="Ordnet die Kacheln nach ihren Räumen in Home Assistant, mit dem Raum als Überschrift">Nach Räumen trennen</button>` : ""}
         <span class="hint">${this._isList()
@@ -1482,6 +1494,8 @@ class EchoStudioPanel extends HTMLElement {
           ? "Tasten antippen zum Gestalten, ziehen zum Tauschen. Nach „Speichern“ übernimmt die Echo Show das Deck gleich; was du dort änderst, erscheint hier von selbst."
           : this._part === "radio"
           ? "Favoriten ziehen zum Sortieren, antippen zum Bearbeiten. Auf der Show kommt ein Sender mit langem Druck oder dem Herz im Player dazu; das erscheint hier von selbst."
+          : this._part === "ezan"
+          ? "Die Zeiten kommen aus Home Assistants Integration „Islamic Prayer Times“. Nach „Speichern“ holt die Echo Show die MP3 und spielt sie zu jeder Gebetszeit."
           : this._part === "remote"
           ? "So sieht die Fernbedienung auf der Echo Show aus. Kacheln links sortieren, entfernen oder dazunehmen; nach „Speichern“ übernimmt die Show sie gleich."
           : this._part === "offers"
@@ -1508,6 +1522,7 @@ class EchoStudioPanel extends HTMLElement {
     if (this._part === "deck") return this._deckLeftHtml();
     if (this._part === "offers") return this._offersLeftHtml();
     if (this._part === "remote") return this._remoteLeftHtml();
+    if (this._part === "ezan") return this._ezanLeftHtml();
     if (this._part === "look") {
       const look = this._menu.look;
       return `<label class="hint">Farbthema</label>
@@ -1561,6 +1576,7 @@ class EchoStudioPanel extends HTMLElement {
     if (this._part === "deck") return this._deckPreviewHtml();
     if (this._part === "offers") return this._offersPreviewHtml();
     if (this._part === "remote") return this._remotePreviewHtml();
+    if (this._part === "ezan") return this._ezanPreviewHtml();
     const look = this._menu.look;
     const [ground, accent, soft, rules] = MENU_COLORS[look.theme || "start"] || MENU_COLORS.start;
     const tabs = this._menuTabsList().filter((t) => t.show !== false);
@@ -1605,6 +1621,11 @@ class EchoStudioPanel extends HTMLElement {
   _menuPropsHtml() {
     if (this._part === "radio") return this._radioPropsHtml();
     if (this._part === "deck") return this._deckPropsHtml();
+    if (this._part === "ezan") return `<h2>Ezan</h2><p class="hint">Die Echo Show ruft zu allen fünf Gebeten den Ezan: İmsak, Öğle,
+      İkindi, Akşam und Yatsı. Läuft gerade Musik oder Radio, hält sie an und geht nach dem Ezan weiter.</p><p class="hint">Lade deine
+      Lieblingsaufnahme als MP3 hoch (bis 12 MB). Für İmsak kannst du eine eigene nehmen, etwa den Sabah-Ezan; ohne sie gilt die erste.
+      Die Show speichert die Dateien bei sich, der Ezan kommt also auch, wenn Home Assistant gerade nicht antwortet.</p>
+      <p class="hint">„Auf der Show testen“ speichert und spielt den Ezan einmal auf der Show.</p>`;
     if (this._part === "remote") return `<h2>Fernbedienung</h2><p class="hint">Die Fernbedienung steuert die TV-Box über die
       Integration „Android TV Remote“ in Home Assistant: Steuerkreuz, Zurück, Home, Lautstärke und die Apps als Kacheln. Auf der Show
       öffnet sie der Reiter „Fernbedienung“ oder eine Deck-Taste „TV: Fernbedienung öffnen“.</p><p class="hint">Eine App kommt mit ihrem
@@ -1926,6 +1947,99 @@ class EchoStudioPanel extends HTMLElement {
   // Tasten am PC (Deck-Programm) oder steuert OBS. Auf der Show lässt ein langer Druck umbenennen,
   // umfärben und verschieben; das kommt hierher zurück. OBS und die PCs mit ihren Schlüsseln bleiben
   // auf der Show; sie sagt nur ihre Namen (echo_studio/deck/info).
+
+  // --- Ezan (Hilal OS): die MP3 zu den Gebetszeiten, eine eigene für İmsak, die Lautstärke. ---
+
+  _ezanFrom(e) { return e ? { ...e } : null; }
+
+  _ezanEnsure() {
+    if (!this._menu.ezan) this._menu.ezan = {};
+    return this._menu.ezan;
+  }
+
+  _ezanLeftHtml() {
+    const e = this._menu.ezan || {};
+    const file = (key, title, hint) => {
+      const url = e[key] ? this._url(e[key]) : "";
+      return `<label class="hint" style="display:block;margin-top:16px">${title}</label>
+        ${e[key] ? `<div class="hint">🎵 ${this._esc(e[key + "_name"] || e[key])}</div>
+          ${url ? `<audio controls preload="none" src="${this._esc(url)}" style="width:100%;margin:6px 0"></audio>` : ""}` : `<div class="hint">${hint}</div>`}
+        <div class="row" style="margin-top:6px"><input type="file" accept="audio/mpeg,.mp3" data-ezfile="${key}" style="flex:1">
+          ${e[key] && key === "fajr" ? `<button data-ezdel="${key}">Entfernen</button>` : ""}</div>`;
+    };
+    const vol = e.volume || 0;
+    return `<label class="ochk"><input type="checkbox" id="ezon" ${e.off ? "" : "checked"}> Ezan zu den Gebetszeiten</label>
+      ${file("file", "Ezan (alle Gebete)", "Noch keine Datei: lade eine MP3 hoch.")}
+      ${file("fajr", "Eigener Ezan für İmsak <small>(optional)</small>", "Keiner: İmsak nimmt den Ezan oben.")}
+      ${this._ezanBusy ? `<p class="hint">Wird hochgeladen …</p>` : ""}
+      <label class="hint" style="display:block;margin-top:16px">Lautstärke: <b id="ezvoll">${vol ? vol + " %" : "wie die Show gerade steht"}</b></label>
+      <input type="range" id="ezvol" min="0" max="100" step="5" value="${vol}" style="width:100%">
+      <button id="eztest" style="margin-top:14px" ${e.file ? "" : "disabled"}>▶ Auf der Show testen</button>`;
+  }
+
+  // Die Vorschau: die Gebetszeiten von heute, wie Home Assistant sie hat.
+  _ezanPreviewHtml() {
+    const states = this._hass?.states || {};
+    const kinds = [["fajr", "İmsak"], ["dhuhr", "Öğle"], ["asr", "İkindi"], ["maghrib", "Akşam"], ["isha", "Yatsı"]];
+    const e = this._menu.ezan || {};
+    const rows = kinds.map(([k, name]) => {
+      const id = Object.keys(states).find((x) => x.startsWith("sensor.") && (x.includes("_" + k + "_") || x.endsWith("_" + k))
+        && states[x].attributes?.device_class === "timestamp");
+      const t = id ? new Date(states[id].state) : null;
+      const time = t && !isNaN(t) ? t.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "--:--";
+      const on = e.file && !e.off;
+      const which = k === "fajr" && e.fajr ? "eigener Ezan" : on ? "Ezan" : "still";
+      return `<div class="ezrow"><b>${name}</b><span class="t">${time}</span><span class="w ${on ? "on" : ""}">${on ? "🔊 " : "🔇 "}${which}</span></div>`;
+    }).join("");
+    return `<div class="ezcard"><div class="ezhead">🕌 Gebetszeiten heute</div>${rows}
+      ${Object.keys(states).some((x) => /_(fajr|dhuhr|isha)/.test(x)) ? "" : `<p class="hint">Home Assistant hat keine Gebetszeiten: die Integration
+        „Islamic Prayer Times“ hinzufügen.</p>`}</div>`;
+  }
+
+  async _ezanUpload(key, f) {
+    if (!f) return;
+    if (f.size > 12 * 1024 * 1024) { this._error = "Die MP3 ist größer als 12 MB."; this._renderTop(); return; }
+    this._ezanBusy = true; this._renderMenuLeft();
+    try {
+      const r = await this._hass.fetchWithAuth("/api/echo_studio/audio", { method: "POST", body: f, headers: { "Content-Type": "audio/mpeg" } });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.message || r.statusText);
+      const e = this._ezanEnsure();
+      e[key] = j.file;
+      e[key + "_name"] = f.name.slice(0, 80);
+      this._error = "";
+      this._edited(false);
+    } catch (err) {
+      this._error = "Hochladen fehlgeschlagen: " + (err.message || err);
+      this._renderTop();
+    } finally {
+      this._ezanBusy = false; this._renderMenuLeft();
+    }
+  }
+
+  _wireEzanLeft(left) {
+    left.addEventListener("change", (ev) => {
+      const t = ev.target;
+      if (t.dataset.ezfile) { this._ezanUpload(t.dataset.ezfile, t.files?.[0]); return; }
+      if (t.id === "ezon") { const e = this._ezanEnsure(); if (t.checked) delete e.off; else e.off = true; this._edited(false); return; }
+      if (t.id === "ezvol") { const e = this._ezanEnsure(); const v = Number(t.value); if (v) e.volume = v; else delete e.volume; this._edited(false); }
+    });
+    left.addEventListener("input", (ev) => {
+      if (ev.target.id !== "ezvol") return;
+      const v = Number(ev.target.value);
+      const l = this._el("ezvoll");
+      if (l) l.textContent = v ? v + " %" : "wie die Show gerade steht";
+    });
+    left.addEventListener("click", async (ev) => {
+      const del = ev.target.closest("button[data-ezdel]");
+      if (del) { const e = this._ezanEnsure(); delete e[del.dataset.ezdel]; delete e[del.dataset.ezdel + "_name"]; this._edited(false); this._renderMenuLeft(); return; }
+      if (ev.target.id === "eztest") {
+        this._ezanEnsure().test = Date.now();
+        this._edited(false);
+        await this._save();
+      }
+    });
+  }
 
   // --- Fernbedienung (Hilal OS): welche TV-Box und welche Apps als Kacheln; screen_ottoman_remote.go. ---
 
@@ -2721,6 +2835,7 @@ class EchoStudioPanel extends HTMLElement {
     if (this._part === "radio") { this._wireRadioLeft(left); return; }
     if (this._part === "offers") { this._wireOffersLeft(left); return; }
     if (this._part === "remote") { this._wireRemoteLeft(left); return; }
+    if (this._part === "ezan") { this._wireEzanLeft(left); return; }
     if (this._part === "deck") { this._wireDeckLeft(left); return; }
     let typing = null;
     left.addEventListener("input", (e) => {
@@ -2767,7 +2882,7 @@ class EchoStudioPanel extends HTMLElement {
   _wireMenuProps() {
     if (this._part === "radio") { this._wireRadioProps(); return; }
     if (this._part === "deck") { this._wireDeckProps(); return; }
-    if (this._part === "offers" || this._part === "remote") return;
+    if (this._part === "offers" || this._part === "remote" || this._part === "ezan") return;
     const on = (id, ev, fn) => { const el = this._el(id); if (el) el.addEventListener(ev, fn); };
     const it = this._item(this._selected);
     if (!it) return;

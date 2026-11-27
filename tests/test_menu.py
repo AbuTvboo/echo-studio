@@ -176,3 +176,17 @@ def test_deck_keeps_hyperion_button():
     got = menu.clean_menu({"deck": {"cols": 4, "rows": 3, "pages": [{"buttons": [
         {"action": "hyperion", "entity": "light.ambilighttv", "label": "Ambilight"}]}]}})
     assert got["deck"]["pages"][0]["buttons"][0] == {"action": "hyperion", "entity": "light.ambilighttv", "label": "Ambilight"}
+
+
+def test_ezan_is_kept_and_cleaned():
+    got = menu.clean_menu({"ezan": {"file": "0123456789abcdef01234567.mp3", "file_name": "Mekke.mp3", "fajr": "",
+                                    "volume": 60, "off": False, "test": 1764000000000}})
+    assert got["ezan"] == {"file": "0123456789abcdef01234567.mp3", "file_name": "Mekke.mp3", "volume": 60, "test": 1764000000000}
+    assert menu.ezan_files(got) == {"0123456789abcdef01234567.mp3"}
+    assert "ezan" not in menu.clean_menu({})
+
+
+@pytest.mark.parametrize("ezan", ["x", {"file": "../secret.mp3"}, {"volume": 150}, {"file": "abc.wav"}])
+def test_ezan_rejects(ezan):
+    with pytest.raises(menu.MenuError):
+        menu.clean_menu({"ezan": ezan})

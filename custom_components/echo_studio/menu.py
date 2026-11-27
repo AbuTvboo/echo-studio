@@ -42,6 +42,14 @@ favorites sind die Lieblingsprodukte, wie man sie sagt (Marke und Produkt; Grö�
 sind Vorlieben), stores die Märkte (leer: Lidl, EDEKA, ALDI SÜD, REWE). Der Stern auf der Show trägt
 selbst ein und aus (echo_studio/offers/save). Fehlt offers, schickt die Show ihre.
 
+ezan: der Gebetsruf der Show zu den fünf Gebetszeiten, optional:
+
+    "ezan": {"file": "<24 hex>.mp3", "file_name": "Ezan Mekke.mp3", "fajr": "<24 hex>.mp3", "volume": 60, "off": false}
+
+file ist die hochgeladene MP3 (echo_studio/audio), fajr eine eigene für İmsak (fehlt sie, gilt file), volume
+die Lautstärke in Prozent (0: wie die Show gerade steht), test ein Zeitstempel in ms: die Show spielt den
+Ezan einmal, wenn er neu und nicht älter als zwei Minuten ist.
+
 remote: die Fernbedienung der TV-Box (Android TV Remote in Home Assistant), optional:
 
     "remote": {"entity": "remote.box", "apps": [{"name": "Netflix", "app": "com.netflix.ninja", "icon": "netflix", "color": "#b20710"}]}
@@ -282,7 +290,47 @@ def clean_menu(raw: Any) -> dict[str, Any]:
         **({"deck": deck} if (deck := clean_deck(raw.get("deck"))) is not None else {}),
         **({"offers": offers} if (offers := clean_offers(raw.get("offers"))) is not None else {}),
         **({"remote": remote} if (remote := clean_remote(raw.get("remote"))) is not None else {}),
+        **({"ezan": ezan} if (ezan := clean_ezan(raw.get("ezan"))) is not None else {}),
     }
+
+
+_EZAN_FILE = re.compile(r"^[0-9a-f]{24}\.mp3$")
+
+
+def clean_ezan(raw: Any) -> dict[str, Any] | None:
+    """Prüft den Teil ezan (der Gebetsruf der Show); None, wenn es keinen gibt."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise MenuError("ezan ist kein Objekt")
+    out: dict[str, Any] = {}
+    for key in ("file", "fajr"):
+        v = raw.get(key)
+        if v in (None, ""):
+            continue
+        if not isinstance(v, str) or not _EZAN_FILE.match(v):
+            raise MenuError(f"ezan.{key} ist keine hochgeladene MP3: {v!r}")
+        out[key] = v
+        name = _text(raw.get(key + "_name"), 80)
+        if name:
+            out[key + "_name"] = name
+    volume = raw.get("volume", 0)
+    if not isinstance(volume, int) or isinstance(volume, bool) or not 0 <= volume <= 100:
+        raise MenuError("ezan.volume ist 0 bis 100")
+    if volume:
+        out["volume"] = volume
+    if raw.get("off") is True:
+        out["off"] = True
+    test = raw.get("test")
+    if isinstance(test, int) and not isinstance(test, bool) and test > 0:
+        out["test"] = test
+    return out
+
+
+def ezan_files(menu: dict[str, Any]) -> set[str]:
+    """Die MP3-Dateien, die das Menü für den Ezan braucht."""
+    ezan = menu.get("ezan") or {}
+    return {ezan[k] for k in ("file", "fajr") if ezan.get(k)}
 
 
 # Wie viele App-Kacheln die Fernbedienung höchstens hat (remote_ottoman_data.go: remoteAppsMax).

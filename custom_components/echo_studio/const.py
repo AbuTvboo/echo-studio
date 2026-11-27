@@ -29,6 +29,12 @@ FILES_URL = "/api/echo_studio/file"
 MAX_IMAGE_BYTES = 2 * 1024 * 1024
 IMAGE_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/svg+xml": ".svg"}
 
+# Der Ezan (Hilal OS): eine eigene MP3, hochgeladen in Echo Studio, liegt bei den Bildern; die Show holt
+# sie mit ihrer Anmeldung und spielt sie zu den Gebetszeiten.
+AUDIO_URL = "/api/echo_studio/audio"
+AUDIO_SUFFIX = ".mp3"
+MAX_AUDIO_BYTES = 12 * 1024 * 1024
+
 # Grenzen, damit eine kaputte Oberfläche nichts Riesiges speichert
 MAX_ITEMS = 300
 SIZES = ("1x1", "2x1", "2x2")
